@@ -34,6 +34,7 @@ export interface FamilyTreeCanvasHandle {
 interface FamilyTreeCanvasProps {
   treeName: string;
   canEdit?: boolean;
+  isDark?: boolean;
   layout: TreeLayoutResult;
   selectedMemberId: string | null;
   highlightedMemberId: string | null;
@@ -58,6 +59,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
     {
       treeName,
       canEdit = true,
+      isDark = false,
       layout,
       selectedMemberId,
       highlightedMemberId,
@@ -370,15 +372,15 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
           ref={containerRef}
           className="relative flex-1 w-full h-full canvas-dot-grid flex items-center justify-center p-6"
         >
-          <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-xs space-y-5">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700">
+          <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center shadow-xs space-y-5">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200">
               <UserPlus className="w-6 h-6" aria-hidden="true" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-semibold text-slate-900">
+              <h2 className="font-display text-xl font-semibold text-slate-900 dark:text-slate-100">
                 {canEdit ? 'Start your family tree' : 'This family tree is empty'}
               </h2>
-              <p className="text-sm text-slate-600 leading-relaxed">
+              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 {canEdit
                   ? 'Add your first family member to begin mapping generations. Parents, spouses, children, siblings, and cousins will automatically arrange themselves as you grow the tree.'
                   : 'No family members have been added to this shared tree yet. You currently have view-only access.'}
@@ -388,7 +390,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
               <button
                 type="button"
                 onClick={onAddFirstMember}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors"
               >
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
                 Add Family Member
@@ -428,7 +430,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                 style={{ transform: `translate3d(12px, ${screenY - 12}px, 0)` }}
                 className="absolute top-0 left-0 flex flex-col"
               >
-                <span className="text-[11px] font-mono tabular-nums font-medium text-slate-500 bg-slate-50/90 backdrop-blur-[2px] px-1.5 py-0.5 rounded border border-slate-200/80">
+                <span className="text-[11px] font-mono tabular-nums font-medium text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-[2px] px-1.5 py-0.5 rounded border border-slate-200/80 dark:border-slate-700/80">
                   {g.label}
                 </span>
               </div>
@@ -457,10 +459,16 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                 conn.involvedMemberIds.includes(selectedMemberId);
 
               const strokeColor = isRelated
-                ? '#0f172a'
+                ? isDark
+                  ? '#f8fafc'
+                  : '#0f172a'
                 : conn.type === 'spouse'
-                  ? '#64748b'
-                  : '#94a3b8';
+                  ? isDark
+                    ? '#94a3b8'
+                    : '#64748b'
+                  : isDark
+                    ? '#475569'
+                    : '#94a3b8';
 
               const strokeWidth = isRelated ? 2.4 : conn.type === 'spouse' ? 2 : 1.75;
               const isDashed =
@@ -482,7 +490,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                       cx={conn.unionPoint.x}
                       cy={conn.unionPoint.y}
                       r={4.5}
-                      fill="#ffffff"
+                      fill={isDark ? '#0f172a' : '#ffffff'}
                       stroke={strokeColor}
                       strokeWidth={2}
                     />
@@ -492,7 +500,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                       x={conn.labelPos.x}
                       y={conn.labelPos.y}
                       textAnchor="middle"
-                      fill="#64748b"
+                      fill={isDark ? '#94a3b8' : '#64748b'}
                       fontSize="11"
                       fontWeight="500"
                     >
@@ -535,18 +543,18 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
           onClick={(e) => e.stopPropagation()}
           className="absolute bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-20 max-w-[calc(100vw-16px)]"
         >
-          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-1 sm:p-1.5 shadow-md">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-1 sm:p-1.5 shadow-md">
             <button
               type="button"
               onClick={() => zoomBy(0.84)}
               title="Zoom Out"
               aria-label="Zoom out"
-              className="p-2.5 sm:p-2 rounded-lg text-slate-700 hover:bg-slate-100 active:bg-slate-100 transition-colors"
+              className="p-2.5 sm:p-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 transition-colors"
             >
               <ZoomOut className="w-4 h-4" aria-hidden="true" />
             </button>
 
-            <span className="px-1.5 sm:px-2 text-[11px] sm:text-xs font-mono tabular-nums font-medium text-slate-700 min-w-[38px] sm:min-w-[46px] text-center select-none">
+            <span className="px-1.5 sm:px-2 text-[11px] sm:text-xs font-mono tabular-nums font-medium text-slate-700 dark:text-slate-200 min-w-[38px] sm:min-w-[46px] text-center select-none">
               {Math.round(transform.scale * 100)}%
             </span>
 
@@ -555,19 +563,19 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
               onClick={() => zoomBy(1.18)}
               title="Zoom In"
               aria-label="Zoom in"
-              className="p-2.5 sm:p-2 rounded-lg text-slate-700 hover:bg-slate-100 active:bg-slate-100 transition-colors"
+              className="p-2.5 sm:p-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 transition-colors"
             >
               <ZoomIn className="w-4 h-4" aria-hidden="true" />
             </button>
 
-            <div className="w-px h-5 bg-slate-200 mx-0.5 sm:mx-1" aria-hidden="true" />
+            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5 sm:mx-1" aria-hidden="true" />
 
             <button
               type="button"
               onClick={fitToView}
               title="Fit Entire Tree"
               aria-label="Fit entire tree to view"
-              className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
             >
               <Shrink className="w-4 h-4" aria-hidden="true" />
               <span className="hidden md:inline">Fit Tree</span>
@@ -578,7 +586,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
               onClick={resetView}
               title="Reset Layout"
               aria-label="Reset tree layout and view"
-              className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
             >
               <RotateCcw className="w-4 h-4" aria-hidden="true" />
               <span className="hidden md:inline">Reset</span>
@@ -590,21 +598,21 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                 onClick={onExpandAll}
                 title="Expand All Branches"
                 aria-label="Expand all collapsed branches"
-                className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/70 transition-colors whitespace-nowrap shrink-0"
               >
                 <UnfoldVertical className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Expand All</span>
               </button>
             )}
 
-            <div className="w-px h-5 bg-slate-200 mx-0.5 sm:mx-1" aria-hidden="true" />
+            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5 sm:mx-1" aria-hidden="true" />
 
             <button
               type="button"
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              className="hidden sm:inline-flex p-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+              className="hidden sm:inline-flex p-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               {isFullscreen ? (
                 <Minimize2 className="w-4 h-4" aria-hidden="true" />
@@ -622,7 +630,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
                 title="Export Family Tree"
                 aria-label="Export family tree"
                 aria-expanded={exportMenuOpen}
-                className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
                 <span className="hidden sm:inline">
@@ -631,21 +639,21 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
               </button>
 
               {exportMenuOpen && (
-                <div className="absolute bottom-13 right-0 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-30">
+                <div className="absolute bottom-13 right-0 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1.5 z-30">
                   <button
                     type="button"
                     onClick={() => void handleExport('png')}
-                    className="w-full px-3.5 py-2.5 sm:py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"
+                    className="w-full px-3.5 py-2.5 sm:py-2 text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5"
                   >
-                    <FileImage className="w-4 h-4 text-slate-500" aria-hidden="true" />
+                    <FileImage className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
                     Export as PNG Image
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleExport('pdf')}
-                    className="w-full px-3.5 py-2.5 sm:py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"
+                    className="w-full px-3.5 py-2.5 sm:py-2 text-left text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5"
                   >
-                    <FileText className="w-4 h-4 text-slate-500" aria-hidden="true" />
+                    <FileText className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
                     Export as PDF Document
                   </button>
                 </div>
@@ -656,18 +664,18 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
 
         {/* Subtle orientation legend (bottom-left on desktop) */}
         <div
-          className="pointer-events-none hidden lg:flex items-center gap-4 absolute bottom-5 left-5 z-10 text-[11px] text-slate-500 bg-white/85 backdrop-blur-xs border border-slate-200/80 rounded-lg px-3 py-1.5"
+          className="pointer-events-none hidden lg:flex items-center gap-4 absolute bottom-5 left-5 z-10 text-[11px] text-slate-500 dark:text-slate-400 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xs border border-slate-200/80 dark:border-slate-700/80 rounded-lg px-3 py-1.5"
           aria-hidden="true"
         >
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-blue-600 inline-block" />
+            <span className="w-2.5 h-0.5 bg-blue-600 dark:bg-blue-400 inline-block" />
             Male
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-0.5 bg-pink-600 inline-block" />
+            <span className="w-2.5 h-0.5 bg-pink-600 dark:bg-pink-400 inline-block" />
             Female
           </span>
-          <span className="text-slate-300">·</span>
+          <span className="text-slate-300 dark:text-slate-600">·</span>
           <span className="inline-flex items-center gap-1">
             <Expand className="w-3 h-3" />
             Drag to pan · Scroll to zoom

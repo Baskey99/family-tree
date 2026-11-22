@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -121,6 +122,10 @@ export function formatFirebaseAuthError(error: unknown): string {
       return 'Email/Password sign-in is not enabled yet in Firebase Console (Authentication → Sign-in method → Email/Password).';
     case 'auth/popup-closed-by-user':
       return 'Sign-in popup was closed before completing.';
+    case 'auth/missing-email':
+      return 'Please enter your email address.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection and try again.';
     default:
       return error instanceof Error ? error.message : 'Authentication failed. Please try again.';
   }
@@ -229,6 +234,45 @@ export async function loginWithUsernameOrEmail(
   try {
     const cred = await signInWithEmailAndPassword(auth, emailToSignIn, password);
     return cred.user;
+  } catch (error) {
+    throw new Error(formatFirebaseAuthError(error));
+  }
+}
+
+export async function sendPasswordResetForIdentifier(identifier: string): Promise<string> {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
+    throw new Error('Please enter your username or email address.');
+  }
+
+  let emailToReset = trimmed.toLowerCase();
+
+  if (!trimmed.includes('@')) {
+    const usernameKey = normalizeUsernameKey(trimmed);
+    if (usernameKey.length < 2) {
+      throw new Error('Please enter a valid username or email address.');
+    }
+    let snap;
+    try {
+      snap = await getDoc(doc(db, 'usernames', usernameKey));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `usernames/${usernameKey}`);
+    }
+    if (!snap.exists()) {
+      throw new Error('No account found with that username. Try entering your email address.');
+    }
+    const data = snap.data();
+    if (!data?.email || typeof data.email !== 'string') {
+      throw new Error('Account lookup is incomplete. Please enter your email address directly.');
+    }
+    emailToReset = data.email.trim().toLowerCase();
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToReset)) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, emailToReset);
+    return emailToReset;
   } catch (error) {
     throw new Error(formatFirebaseAuthError(error));
   }

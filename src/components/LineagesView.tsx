@@ -92,13 +92,13 @@ export function LineagesView({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50">
+    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
         <div>
-          <h1 className="font-display text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
             Family Lineages
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Create private family trees, share view or edit access with family members, or open
             lineages shared with you.
           </p>
@@ -107,12 +107,12 @@ export function LineagesView({
         {/* Pending Invitations Received */}
         {incomingInvites.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5" aria-hidden="true" />
               Pending Invitations ({incomingInvites.length})
             </h2>
 
-            <div className="divide-y divide-slate-200 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               {incomingInvites.map((invite) => {
                 const isBusy = busyInviteId === invite.id;
                 return (
@@ -121,13 +121,16 @@ export function LineagesView({
                     className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
                     <div className="min-w-0">
-                      <h3 className="font-display text-base font-semibold text-slate-900 truncate">
+                      <h3 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {invite.treeName}
                       </h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Invited by <span className="font-medium text-slate-700">{invite.ownerName}</span>{' '}
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Invited by{' '}
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
+                          {invite.ownerName}
+                        </span>{' '}
                         · Access:{' '}
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">
                           {invite.role === 'editor' ? 'Editor (Can view & edit)' : 'Viewer (View only)'}
                         </span>
                       </p>
@@ -144,7 +147,7 @@ export function LineagesView({
                             setBusyInviteId(null);
                           }
                         }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
                       >
                         <Check className="w-3.5 h-3.5" aria-hidden="true" />
                         Accept
@@ -160,7 +163,7 @@ export function LineagesView({
                             setBusyInviteId(null);
                           }
                         }}
-                        className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                       >
                         <X className="w-3.5 h-3.5" aria-hidden="true" />
                         Decline
@@ -175,18 +178,18 @@ export function LineagesView({
 
         {/* Owned Trees */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               My Family Trees ({ownedTrees.length})
             </h2>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {isCloudMode ? 'Private · Synced to Cloud Firestore' : 'Stored locally in this browser'}
             </span>
           </div>
 
-          <div className="divide-y divide-slate-200 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
             {ownedTrees.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">
+              <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                 No family trees created yet. Create a blank tree below or import the sample family
                 template.
               </div>
@@ -210,7 +213,7 @@ export function LineagesView({
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           maxLength={120}
-                          className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
+                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
                         />
                         <input
                           type="text"
@@ -218,13 +221,13 @@ export function LineagesView({
                           onChange={(e) => setEditDesc(e.target.value)}
                           maxLength={400}
                           placeholder="Short description..."
-                          className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg"
+                          className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                         />
                         <div className="flex items-center gap-2 pt-1">
                           <button
                             type="button"
                             onClick={() => void handleSaveRename(tree.id)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-white"
                           >
                             <Check className="w-3.5 h-3.5" aria-hidden="true" />
                             Save
@@ -232,7 +235,7 @@ export function LineagesView({
                           <button
                             type="button"
                             onClick={() => setEditingId(null)}
-                            className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+                            className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                           >
                             Cancel
                           </button>
@@ -241,17 +244,21 @@ export function LineagesView({
                     ) : (
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-display text-base font-semibold text-slate-900 truncate">
+                          <h3 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {tree.name}
                           </h3>
                           {isActive && (
-                            <span className="text-xs font-medium text-blue-700">· Active</span>
+                            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                              · Active
+                            </span>
                           )}
                         </div>
                         {tree.description && (
-                          <p className="text-xs text-slate-500 mt-1">{tree.description}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            {tree.description}
+                          </p>
                         )}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
                           <span className="font-mono tabular-nums">
                             Updated {new Date(tree.updatedAt).toLocaleDateString()}
                           </span>
@@ -264,7 +271,9 @@ export function LineagesView({
                           {pendingCount > 0 && (
                             <>
                               <span>·</span>
-                              <span className="text-slate-500">{pendingCount} pending</span>
+                              <span className="text-slate-500 dark:text-slate-400">
+                                {pendingCount} pending
+                              </span>
                             </>
                           )}
                         </div>
@@ -275,7 +284,7 @@ export function LineagesView({
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         {isDeleting ? (
                           <>
-                            <span className="text-xs text-rose-700 font-medium mr-1">
+                            <span className="text-xs text-rose-700 dark:text-rose-400 font-medium mr-1">
                               Delete tree?
                             </span>
                             <button
@@ -291,7 +300,7 @@ export function LineagesView({
                             <button
                               type="button"
                               onClick={() => setConfirmDeleteId(null)}
-                              className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                              className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
                               Cancel
                             </button>
@@ -303,8 +312,8 @@ export function LineagesView({
                               onClick={() => onSelectTree(tree.id)}
                               className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                                 isActive
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'bg-slate-900 text-white hover:bg-slate-800'
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                                  : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-white'
                               }`}
                             >
                               <GitFork className="w-3.5 h-3.5" aria-hidden="true" />
@@ -315,7 +324,7 @@ export function LineagesView({
                               onClick={() => onShareTree(tree.id)}
                               title="Share with family members"
                               aria-label={`Share ${tree.name}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
                             >
                               <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
                               Share
@@ -329,7 +338,7 @@ export function LineagesView({
                                 setEditName(tree.name);
                                 setEditDesc(tree.description);
                               }}
-                              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             >
                               <Pencil className="w-4 h-4" aria-hidden="true" />
                             </button>
@@ -338,7 +347,7 @@ export function LineagesView({
                               title="Delete Tree"
                               aria-label={`Delete ${tree.name}`}
                               onClick={() => setConfirmDeleteId(tree.id)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              className="p-2 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" aria-hidden="true" />
                             </button>
@@ -356,18 +365,18 @@ export function LineagesView({
         {/* Shared With Me */}
         {isCloudMode && (
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Shared With Me ({sharedTrees.length})
               </h2>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Trees other family members invited you to
               </span>
             </div>
 
-            <div className="divide-y divide-slate-200 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               {sharedTrees.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">
+                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
                   No family trees have been shared with your account yet. When a relative invites
                   your email or username, it will appear here.
                 </div>
@@ -382,20 +391,24 @@ export function LineagesView({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-display text-base font-semibold text-slate-900 truncate">
+                          <h3 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {tree.name}
                           </h3>
                           {isActive && (
-                            <span className="text-xs font-medium text-blue-700">· Active</span>
+                            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                              · Active
+                            </span>
                           )}
                         </div>
                         {tree.description && (
-                          <p className="text-xs text-slate-500 mt-1">{tree.description}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            {tree.description}
+                          </p>
                         )}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
                           <span>Shared by {tree.ownerName || 'Family Owner'}</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="font-medium text-slate-700">
+                          <span className="text-slate-300 dark:text-slate-600">·</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-200">
                             {tree.accessRole === 'editor'
                               ? 'Editor (Can view & edit)'
                               : 'Viewer (View only)'}
@@ -406,7 +419,7 @@ export function LineagesView({
                       <div className="flex items-center gap-2 shrink-0">
                         {isLeaving && tree.membershipId ? (
                           <>
-                            <span className="text-xs text-rose-700 font-medium mr-1">
+                            <span className="text-xs text-rose-700 dark:text-rose-400 font-medium mr-1">
                               Leave tree?
                             </span>
                             <button
@@ -422,7 +435,7 @@ export function LineagesView({
                             <button
                               type="button"
                               onClick={() => setConfirmLeaveId(null)}
-                              className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+                              className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
                             >
                               Cancel
                             </button>
@@ -434,8 +447,8 @@ export function LineagesView({
                               onClick={() => onSelectTree(tree.id)}
                               className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                                 isActive
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'bg-slate-900 text-white hover:bg-slate-800'
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                                  : 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-white'
                               }`}
                             >
                               <GitFork className="w-3.5 h-3.5" aria-hidden="true" />
@@ -447,7 +460,7 @@ export function LineagesView({
                                 title="Leave shared tree"
                                 aria-label={`Leave ${tree.name}`}
                                 onClick={() => setConfirmLeaveId(tree.id)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                               >
                                 <LogOut className="w-4 h-4" aria-hidden="true" />
                               </button>
@@ -467,15 +480,15 @@ export function LineagesView({
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
           <form
             onSubmit={handleCreate}
-            className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4"
           >
             <div className="flex items-center gap-2.5">
-              <FolderPlus className="w-5 h-5 text-slate-700" aria-hidden="true" />
-              <h2 className="font-display text-base font-semibold text-slate-900">
+              <FolderPlus className="w-5 h-5 text-slate-700 dark:text-slate-300" aria-hidden="true" />
+              <h2 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100">
                 Create Blank Family Tree
               </h2>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Start a clean workspace to map a new branch or side of the family from scratch.
             </p>
             <div className="space-y-3">
@@ -486,7 +499,7 @@ export function LineagesView({
                 maxLength={120}
                 required
                 placeholder="Tree name (e.g., Maternal Lineage)"
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
               />
               <input
                 type="text"
@@ -494,27 +507,27 @@ export function LineagesView({
                 onChange={(e) => setNewDesc(e.target.value)}
                 maxLength={400}
                 placeholder="Optional description..."
-                className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
               />
             </div>
             <button
               type="submit"
               disabled={creating || !newName.trim()}
-              className="px-4 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
             >
               {creating ? 'Creating...' : 'Create Blank Tree'}
             </button>
           </form>
 
           {/* Sample Family Template */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-4">
             <div className="flex items-center gap-2.5">
-              <Import className="w-5 h-5 text-slate-700" aria-hidden="true" />
-              <h2 className="font-display text-base font-semibold text-slate-900">
+              <Import className="w-5 h-5 text-slate-700 dark:text-slate-300" aria-hidden="true" />
+              <h2 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100">
                 Sample Family Template
               </h2>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Import a ready-made 3-generation sample family tree to explore relationships, layout,
               and sharing.
             </p>
@@ -522,11 +535,13 @@ export function LineagesView({
               {SEED_FAMILY_TREES.map((seed) => (
                 <div
                   key={seed.id}
-                  className="flex items-center justify-between gap-3 py-2.5 border-t border-slate-100 first:border-t-0"
+                  className="flex items-center justify-between gap-3 py-2.5 border-t border-slate-100 dark:border-slate-800 first:border-t-0"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{seed.name}</p>
-                    <p className="text-xs text-slate-500 font-mono tabular-nums">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                      {seed.name}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                       {seed.members.length} members · {seed.relationships.length} links
                     </p>
                   </div>
@@ -541,7 +556,7 @@ export function LineagesView({
                         setImportingId(null);
                       }
                     }}
-                    className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
                   >
                     {importingId === seed.id ? 'Importing...' : 'Import Copy'}
                   </button>

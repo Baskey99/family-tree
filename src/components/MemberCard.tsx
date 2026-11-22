@@ -81,17 +81,17 @@ export const MemberCard = React.memo(function MemberCard({
           onViewDetails(member.id);
         }}
         onKeyDown={handleKeyDown}
-        className={`relative w-full h-full bg-white rounded-xl overflow-hidden transition-shadow duration-150 flex flex-col justify-between ${
+        className={`relative w-full h-full bg-white dark:bg-slate-900 rounded-xl overflow-hidden transition-shadow duration-150 flex flex-col justify-between ${
           isHighlighted
-            ? 'ring-2 ring-blue-600 border border-blue-600 shadow-lg'
+            ? 'ring-2 ring-blue-600 dark:ring-blue-400 border border-blue-600 dark:border-blue-400 shadow-lg'
             : isSelected
-              ? 'ring-2 ring-slate-900 border border-slate-900 shadow-md'
-              : 'border border-slate-200/90 hover:border-slate-300 shadow-xs hover:shadow-sm'
+              ? 'ring-2 ring-slate-900 dark:ring-slate-100 border border-slate-900 dark:border-slate-100 shadow-md'
+              : 'border border-slate-200/90 dark:border-slate-700/90 hover:border-slate-300 dark:hover:border-slate-500 shadow-xs hover:shadow-sm'
         }`}
       >
         {/* Clean 3px top gender stripe (Blue = Male, Pink = Female) */}
         <div
-          className={`h-[3px] w-full shrink-0 ${isMale ? 'bg-blue-600' : 'bg-pink-600'}`}
+          className={`h-[3px] w-full shrink-0 ${isMale ? 'bg-blue-600 dark:bg-blue-500' : 'bg-pink-600 dark:bg-pink-500'}`}
           aria-hidden="true"
         />
 
@@ -101,8 +101,8 @@ export const MemberCard = React.memo(function MemberCard({
           <div
             className={`w-11 h-11 rounded-full shrink-0 overflow-hidden flex items-center justify-center font-semibold text-sm ring-1 ${
               isMale
-                ? 'bg-blue-50 text-blue-700 ring-blue-200'
-                : 'bg-pink-50 text-pink-700 ring-pink-200'
+                ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800'
+                : 'bg-pink-50 dark:bg-pink-950/70 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800'
             }`}
           >
             {member.photoUrl && !imgError ? (
@@ -121,20 +121,20 @@ export const MemberCard = React.memo(function MemberCard({
           <div className="min-w-0 flex-1">
             <p
               title={member.fullName}
-              className="text-[13.5px] font-semibold text-slate-900 leading-snug truncate"
+              className="text-[13.5px] font-semibold text-slate-900 dark:text-slate-100 leading-snug truncate"
             >
               {member.fullName}
             </p>
 
             {/* Unboxed clean metadata with typographic separators */}
-            <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-slate-500">
+            <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-slate-500 dark:text-slate-400">
               <GenderIndicator gender={member.gender} compact />
               {age !== null && (
                 <>
-                  <span aria-hidden="true" className="text-slate-300">
+                  <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">
                     ·
                   </span>
-                  <span className="font-mono tabular-nums text-slate-700 font-medium">
+                  <span className="font-mono tabular-nums text-slate-700 dark:text-slate-200 font-medium">
                     {age} yrs
                   </span>
                 </>
@@ -144,9 +144,9 @@ export const MemberCard = React.memo(function MemberCard({
             {member.address && (
               <p
                 title={member.address}
-                className="flex items-center gap-1 mt-1 text-[11px] text-slate-500 truncate"
+                className="flex items-center gap-1 mt-1 text-[11px] text-slate-500 dark:text-slate-400 truncate"
               >
-                <MapPin className="w-3 h-3 shrink-0 text-slate-400" aria-hidden="true" />
+                <MapPin className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
                 <span className="truncate">{member.address}</span>
               </p>
             )}
@@ -158,7 +158,7 @@ export const MemberCard = React.memo(function MemberCard({
       <div
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className={`absolute -top-11 sm:-top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-slate-900 text-white rounded-lg px-1.5 py-1 shadow-md transition-opacity duration-150 ${
+        className={`absolute -top-11 sm:-top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg px-1.5 py-1 shadow-md transition-opacity duration-150 ${
           isSelected
             ? 'opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto'
@@ -169,7 +169,7 @@ export const MemberCard = React.memo(function MemberCard({
           title="View Details"
           aria-label={`View details for ${member.fullName}`}
           onClick={() => onViewDetails(member.id)}
-          className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
+          className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 dark:hover:bg-slate-200 active:bg-slate-700 transition-colors"
         >
           <Eye className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
         </button>
@@ -180,7 +180,7 @@ export const MemberCard = React.memo(function MemberCard({
               title="Edit Member"
               aria-label={`Edit ${member.fullName}`}
               onClick={() => onEdit(member.id)}
-              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
+              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 dark:hover:bg-slate-200 active:bg-slate-700 transition-colors"
             >
               <Pencil className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
@@ -189,17 +189,17 @@ export const MemberCard = React.memo(function MemberCard({
               title="Add Relative"
               aria-label={`Add relative to ${member.fullName}`}
               onClick={() => onAddRelative(member.id)}
-              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
+              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 dark:hover:bg-slate-200 active:bg-slate-700 transition-colors"
             >
               <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
-            <div className="w-px h-4 bg-slate-700 mx-0.5" aria-hidden="true" />
+            <div className="w-px h-4 bg-slate-700 dark:bg-slate-300 mx-0.5" aria-hidden="true" />
             <button
               type="button"
               title="Delete Member"
               aria-label={`Delete ${member.fullName}`}
               onClick={() => onDelete(member.id)}
-              className="p-2 sm:p-1.5 rounded-md text-rose-300 hover:bg-rose-600 hover:text-white active:bg-rose-600 transition-colors"
+              className="p-2 sm:p-1.5 rounded-md text-rose-300 dark:text-rose-600 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white active:bg-rose-600 transition-colors"
             >
               <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
@@ -228,8 +228,8 @@ export const MemberCard = React.memo(function MemberCard({
           }
           className={`absolute -bottom-4 sm:-bottom-3.5 left-1/2 -translate-x-1/2 z-10 h-7 sm:h-6 min-w-[28px] px-2.5 sm:px-2 rounded-full border text-[11px] font-mono tabular-nums font-medium flex items-center justify-center gap-0.5 transition-colors shadow-xs ${
             isCollapsed
-              ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
-              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100 hover:bg-slate-800 dark:hover:bg-white'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           {isCollapsed ? (

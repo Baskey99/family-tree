@@ -363,28 +363,28 @@ export function MemberFormModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="member-modal-title"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 dark:bg-black/70 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-xl max-h-[94dvh] sm:max-h-[92vh] bg-white border-t sm:border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full sm:max-w-xl max-h-[94dvh] sm:max-h-[92vh] bg-white dark:bg-slate-900 border-t sm:border border-slate-200 dark:border-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile drag indicator */}
         <div className="flex justify-center pt-2.5 pb-0.5 sm:hidden shrink-0" aria-hidden="true">
-          <div className="w-10 h-1 rounded-full bg-slate-300" />
+          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 shrink-0">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div>
             <h2
               id="member-modal-title"
-              className="font-display text-base sm:text-lg font-semibold text-slate-900"
+              className="font-display text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100"
             >
               {mode === 'edit' ? 'Edit Family Member' : 'Add Family Member'}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {mode === 'edit'
                 ? 'Updating personal details keeps all existing family connections intact.'
                 : 'Create a profile and connect them into the family hierarchy.'}
@@ -394,7 +394,7 @@ export function MemberFormModal({
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -402,18 +402,18 @@ export function MemberFormModal({
 
         {/* Mode Tabs in Add Mode (Create New vs Link Existing Relative) */}
         {mode === 'add' && members.length > 0 && (
-          <div className="px-5 sm:px-6 pt-3 pb-0 border-b border-slate-100 shrink-0">
-            <div className="grid grid-cols-2 sm:inline-flex items-center gap-1 p-1 bg-slate-100 rounded-lg mb-3 w-full sm:w-auto">
+          <div className="px-5 sm:px-6 pt-3 pb-0 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <div className="grid grid-cols-2 sm:inline-flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg mb-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
                   setTab('new');
                   setFormError(null);
                 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                   tab === 'new'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
@@ -425,10 +425,10 @@ export function MemberFormModal({
                   setTab('link');
                   setFormError(null);
                 }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
                   tab === 'link'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -439,11 +439,11 @@ export function MemberFormModal({
         )}
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
           {formError && (
             <div
               role="alert"
-              className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs"
+              className="flex items-start gap-2.5 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{formError}</span>
@@ -452,12 +452,12 @@ export function MemberFormModal({
 
           {mode === 'add' && tab === 'link' ? (
             <div className="space-y-4">
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Connect two existing family members without creating a duplicate profile.
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Existing Member (Subject)
                 </label>
                 <input
@@ -465,13 +465,13 @@ export function MemberFormModal({
                   value={existingSearch}
                   onChange={(e) => setExistingSearch(e.target.value)}
                   placeholder="Filter members by name..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg mb-2 focus:border-slate-900"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 mb-2 focus:border-slate-900 dark:focus:border-slate-400"
                 />
                 <select
                   value={existingTargetId}
                   onChange={(e) => setExistingTargetId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                 >
                   <option value="">Select member...</option>
                   {filteredExistingTargets.map((m) => (
@@ -484,7 +484,7 @@ export function MemberFormModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Is the ... of
                 </label>
                 <select
@@ -492,7 +492,7 @@ export function MemberFormModal({
                   onChange={(e) =>
                     setRelationshipType(e.target.value as FormRelationshipType)
                   }
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                 >
                   {RELATIONSHIP_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -504,7 +504,7 @@ export function MemberFormModal({
 
               {relationshipType === 'other' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                     Specify Relationship *
                   </label>
                   <input
@@ -514,20 +514,20 @@ export function MemberFormModal({
                     maxLength={80}
                     placeholder="e.g., Maternal Uncle, Adopted Child, Guardian"
                     required
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Related Family Member
                 </label>
                 <select
                   value={relatedMemberId}
                   onChange={(e) => setRelatedMemberId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                  className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                 >
                   <option value="">Select related member...</option>
                   {sortedMembers.map((m) => (
@@ -546,8 +546,8 @@ export function MemberFormModal({
                 <div
                   className={`w-16 h-16 rounded-2xl shrink-0 overflow-hidden flex items-center justify-center text-base font-semibold ring-1 ${
                     gender === 'male'
-                      ? 'bg-blue-50 text-blue-700 ring-blue-200'
-                      : 'bg-pink-50 text-pink-700 ring-pink-200'
+                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-200 dark:ring-blue-800/70'
+                      : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800/70'
                   }`}
                 >
                   {photoUrl ? (
@@ -576,7 +576,7 @@ export function MemberFormModal({
                       type="button"
                       disabled={uploadingPhoto}
                       onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                       {uploadingPhoto
@@ -589,17 +589,19 @@ export function MemberFormModal({
                       <button
                         type="button"
                         onClick={() => setPhotoUrl('')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         Remove
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Optional. Auto-cropped to a crisp avatar; initials fallback is shown if empty.
                   </p>
-                  {photoError && <p className="text-xs text-rose-600">{photoError}</p>}
+                  {photoError && (
+                    <p className="text-xs text-rose-600 dark:text-rose-400">{photoError}</p>
+                  )}
                 </div>
               </div>
 
@@ -607,9 +609,9 @@ export function MemberFormModal({
               <div>
                 <label
                   htmlFor="member-fullname"
-                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                 >
-                  Full Name <span className="text-rose-600">*</span>
+                  Full Name <span className="text-rose-600 dark:text-rose-400">*</span>
                 </label>
                 <input
                   ref={nameInputRef}
@@ -620,10 +622,10 @@ export function MemberFormModal({
                   maxLength={140}
                   required
                   placeholder="e.g., Aarav Sharma"
-                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                  className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
                 />
                 {matchingExistingMember && (
-                  <div className="mt-2 flex items-center justify-between gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                  <div className="mt-2 flex items-center justify-between gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/70 text-xs text-amber-900 dark:text-amber-200">
                     <span>
                       <strong>{matchingExistingMember.fullName}</strong> already exists in this
                       tree.
@@ -644,8 +646,8 @@ export function MemberFormModal({
 
               {/* Gender */}
               <fieldset>
-                <legend className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Gender <span className="text-rose-600">*</span>
+                <legend className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Gender <span className="text-rose-600 dark:text-rose-400">*</span>
                 </legend>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -654,8 +656,8 @@ export function MemberFormModal({
                     aria-pressed={gender === 'male'}
                     className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
                       gender === 'male'
-                        ? 'bg-blue-50 border-blue-600 text-blue-800 ring-1 ring-blue-600'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-600 dark:border-blue-500 text-blue-800 dark:text-blue-200 ring-1 ring-blue-600 dark:ring-blue-500'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
                     <GenderIndicator gender="male" />
@@ -666,8 +668,8 @@ export function MemberFormModal({
                     aria-pressed={gender === 'female'}
                     className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
                       gender === 'female'
-                        ? 'bg-pink-50 border-pink-600 text-pink-800 ring-1 ring-pink-600'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-pink-50 dark:bg-pink-950/50 border-pink-600 dark:border-pink-500 text-pink-800 dark:text-pink-200 ring-1 ring-pink-600 dark:ring-pink-500'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
                     <GenderIndicator gender="female" />
@@ -680,9 +682,10 @@ export function MemberFormModal({
                 <div>
                   <label
                     htmlFor="member-dob"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
-                    Date of Birth <span className="font-normal text-slate-400">(Optional)</span>
+                    Date of Birth{' '}
+                    <span className="font-normal text-slate-400 dark:text-slate-500">(Optional)</span>
                   </label>
                   <input
                     id="member-dob"
@@ -690,24 +693,24 @@ export function MemberFormModal({
                     value={dateOfBirth}
                     max={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                    className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="member-age"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Age{' '}
-                    <span className="font-normal text-slate-400">
+                    <span className="font-normal text-slate-400 dark:text-slate-500">
                       {dateOfBirth ? '(Auto from DOB)' : '(Manual if no DOB)'}
                     </span>
                   </label>
                   {dateOfBirth ? (
                     <div
                       id="member-age"
-                      className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-mono tabular-nums"
+                      className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 font-mono tabular-nums"
                     >
                       {calculatedAge !== null ? `${calculatedAge} years` : 'Invalid date'}
                     </div>
@@ -720,7 +723,7 @@ export function MemberFormModal({
                       value={manualAgeText}
                       onChange={(e) => setManualAgeText(e.target.value)}
                       placeholder="e.g., 32"
-                      className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg font-mono tabular-nums focus:border-slate-900"
+                      className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono tabular-nums focus:border-slate-900 dark:focus:border-slate-400"
                     />
                   )}
                 </div>
@@ -730,9 +733,10 @@ export function MemberFormModal({
               <div>
                 <label
                   htmlFor="member-address"
-                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                 >
-                  Address / Village <span className="font-normal text-slate-400">(Optional)</span>
+                  Address / Village{' '}
+                  <span className="font-normal text-slate-400 dark:text-slate-500">(Optional)</span>
                 </label>
                 <input
                   id="member-address"
@@ -740,19 +744,19 @@ export function MemberFormModal({
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   maxLength={250}
-                  placeholder="e.g., Baghiya, Tilkagarh"
-                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                  placeholder="e.g., Portland, Oregon"
+                  className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
                 />
               </div>
 
               {/* Relationship Section (only in Add mode when tree already has members) */}
               {mode === 'add' && members.length > 0 && (
-                <div className="border-t border-slate-200 pt-5 space-y-4">
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
                   <div>
-                    <h3 className="text-xs font-semibold text-slate-900">
+                    <h3 className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                       Relationship Placement
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       Define how {fullName.trim() || 'this new member'} relates to an existing
                       member so the tree positions them automatically.
                     </p>
@@ -762,7 +766,7 @@ export function MemberFormModal({
                     <div>
                       <label
                         htmlFor="rel-type"
-                        className="block text-xs font-semibold text-slate-700 mb-1.5"
+                        className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                       >
                         Relationship Type
                       </label>
@@ -772,7 +776,7 @@ export function MemberFormModal({
                         onChange={(e) =>
                           handleRelationTypeChange(e.target.value as FormRelationshipType)
                         }
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                       >
                         {RELATIONSHIP_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
@@ -780,7 +784,7 @@ export function MemberFormModal({
                           </option>
                         ))}
                       </select>
-                      <p className="text-[11px] text-slate-500 mt-1">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                         {RELATIONSHIP_OPTIONS.find((o) => o.value === relationshipType)?.hint}
                       </p>
                     </div>
@@ -788,7 +792,7 @@ export function MemberFormModal({
                     <div>
                       <label
                         htmlFor="rel-member"
-                        className="block text-xs font-semibold text-slate-700 mb-1.5"
+                        className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                       >
                         Related Family Member
                       </label>
@@ -798,14 +802,14 @@ export function MemberFormModal({
                           value={memberSearch}
                           onChange={(e) => setMemberSearch(e.target.value)}
                           placeholder="Filter list by name..."
-                          className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg mb-1.5 focus:border-slate-900"
+                          className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 mb-1.5 focus:border-slate-900 dark:focus:border-slate-400"
                         />
                       )}
                       <select
                         id="rel-member"
                         value={relatedMemberId}
                         onChange={(e) => setRelatedMemberId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                       >
                         <option value="">None (Standalone root member)</option>
                         {filteredRelatedMembers.map((m) => (
@@ -822,9 +826,10 @@ export function MemberFormModal({
                     <div>
                       <label
                         htmlFor="rel-custom"
-                        className="block text-xs font-semibold text-slate-700 mb-1.5"
+                        className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                       >
-                        Custom Relationship Label <span className="text-rose-600">*</span>
+                        Custom Relationship Label{' '}
+                        <span className="text-rose-600 dark:text-rose-400">*</span>
                       </label>
                       <input
                         id="rel-custom"
@@ -834,7 +839,7 @@ export function MemberFormModal({
                         maxLength={80}
                         placeholder="e.g., Uncle, Aunt, Foster Parent"
                         required
-                        className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
+                        className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400"
                       />
                     </div>
                   )}
@@ -842,17 +847,20 @@ export function MemberFormModal({
                   {/* Co-parent option when adding a Son or Daughter to a married person */}
                   {(relationshipType === 'son' || relationshipType === 'daughter') &&
                     relatedMemberSpouse && (
-                      <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 cursor-pointer">
+                      <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={alsoLinkSpouseAsParent}
                           onChange={(e) => setAlsoLinkSpouseAsParent(e.target.checked)}
-                          className="mt-0.5 rounded border-slate-300 text-slate-900"
+                          className="mt-0.5 rounded border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                         />
                         <span>
-                          Also link spouse <strong>{relatedMemberSpouse.fullName}</strong> as the
-                          other parent so {fullName.trim() || 'the child'} descends cleanly from
-                          the couple.
+                          Also link spouse{' '}
+                          <strong className="text-slate-900 dark:text-slate-100">
+                            {relatedMemberSpouse.fullName}
+                          </strong>{' '}
+                          as the other parent so {fullName.trim() || 'the child'} descends cleanly
+                          from the couple.
                         </span>
                       </label>
                     )}
@@ -863,7 +871,7 @@ export function MemberFormModal({
                       <div>
                         <label
                           htmlFor="gp-parent"
-                          className="block text-xs font-semibold text-slate-700 mb-1.5"
+                          className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                         >
                           Parent Side (connect grandparent above)
                         </label>
@@ -871,7 +879,7 @@ export function MemberFormModal({
                           id="gp-parent"
                           value={targetParentId || relatedMemberParents[0].id}
                           onChange={(e) => setTargetParentId(e.target.value)}
-                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-slate-900"
+                          className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 focus:border-slate-900 dark:focus:border-slate-400"
                         >
                           {relatedMemberParents.map((p) => (
                             <option key={p.id} value={p.id}>
@@ -884,14 +892,21 @@ export function MemberFormModal({
 
                   {/* Live summary sentence */}
                   {selectedRelatedMember && (
-                    <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5">
-                      <strong>{fullName.trim() || 'New member'}</strong> will be added as the{' '}
-                      <strong>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-lg px-3.5 py-2.5">
+                      <strong className="text-slate-900 dark:text-slate-100">
+                        {fullName.trim() || 'New member'}
+                      </strong>{' '}
+                      will be added as the{' '}
+                      <strong className="text-slate-900 dark:text-slate-100">
                         {relationshipType === 'other'
                           ? customLabel.trim() || 'relative'
                           : relationshipType}
                       </strong>{' '}
-                      of <strong>{selectedRelatedMember.fullName}</strong>.
+                      of{' '}
+                      <strong className="text-slate-900 dark:text-slate-100">
+                        {selectedRelatedMember.fullName}
+                      </strong>
+                      .
                     </p>
                   )}
                 </div>
@@ -901,9 +916,10 @@ export function MemberFormModal({
               <div>
                 <label
                   htmlFor="member-notes"
-                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                 >
-                  Notes <span className="font-normal text-slate-400">(Optional)</span>
+                  Notes{' '}
+                  <span className="font-normal text-slate-400 dark:text-slate-500">(Optional)</span>
                 </label>
                 <textarea
                   id="member-notes"
@@ -912,25 +928,25 @@ export function MemberFormModal({
                   onChange={(e) => setNotes(e.target.value)}
                   maxLength={1000}
                   placeholder="Nicknames, occupation, family history notes..."
-                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900 resize-y"
+                  className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-slate-900 dark:focus:border-slate-400 resize-y"
                 />
               </div>
             </>
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2.5 sm:gap-3 pt-4 pb-safe border-t border-slate-200">
+          <div className="flex items-center justify-end gap-2.5 sm:gap-3 pt-4 pb-safe border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              className="px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting || uploadingPhoto}
-              className="px-5 py-2.5 sm:py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+              className="px-5 py-2.5 sm:py-2 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
             >
               {submitting
                 ? 'Saving...'

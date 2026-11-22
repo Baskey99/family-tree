@@ -15,7 +15,7 @@ export function GenderIndicator({ gender, compact = false }: GenderIndicatorProp
     <span
       className={`inline-flex items-center gap-1 font-medium ${
         compact ? 'text-[11px]' : 'text-xs'
-      } ${isMale ? 'text-blue-700' : 'text-pink-700'}`}
+      } ${isMale ? 'text-blue-700 dark:text-blue-400' : 'text-pink-700 dark:text-pink-400'}`}
     >
       {isMale ? (
         <svg

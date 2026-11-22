@@ -24,6 +24,7 @@ import {
   normalizeUsernameKey,
   OperationType,
   registerWithEmailPassword,
+  sendPasswordResetForIdentifier,
   signInWithGoogle,
   signOutUser,
 } from '../lib/firebase';
@@ -1638,6 +1639,16 @@ export function useFamilyStore() {
     [flashSaved]
   );
 
+  const handleResetPassword = useCallback(
+    async (identifier: string): Promise<string> => {
+      setErrorMessage(null);
+      const sentTo = await sendPasswordResetForIdentifier(identifier);
+      flashSaved(`Password reset email sent to ${sentTo}`);
+      return sentTo;
+    },
+    [flashSaved]
+  );
+
   const handleSignIn = useCallback(async () => {
     setErrorMessage(null);
     await signInWithGoogle();
@@ -1696,6 +1707,7 @@ export function useFamilyStore() {
     deleteRelationship,
     login: handleLogin,
     register: handleRegister,
+    resetPassword: handleResetPassword,
     signIn: handleSignIn,
     signOut: handleSignOut,
   };
