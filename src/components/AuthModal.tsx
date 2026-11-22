@@ -163,15 +163,20 @@ export function AuthModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full sm:max-w-md max-h-[92dvh] bg-white border-t sm:border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile drag handle */}
+        <div className="flex justify-center pt-2.5 pb-0.5 sm:hidden shrink-0" aria-hidden="true">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 shrink-0">
           <div>
             <h2
               id="auth-modal-title"
@@ -196,7 +201,7 @@ export function AuthModal({
         </div>
 
         {/* Mode Switcher */}
-        <div className="px-6 pt-4">
+        <div className="px-5 sm:px-6 pt-4 shrink-0">
           <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
             <button
               type="button"
@@ -231,7 +236,7 @@ export function AuthModal({
           </div>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-5 sm:px-6 py-5 pb-safe space-y-4 overflow-y-auto">
           {error && (
             <div
               role="alert"
@@ -264,7 +269,7 @@ export function AuthModal({
                     required
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="e.g., amit_baskey or you@example.com"
+                    placeholder="e.g., aarav_sharma or you@example.com"
                     className="w-full pl-9 pr-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
                   />
                 </div>
@@ -338,7 +343,7 @@ export function AuthModal({
                     maxLength={100}
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
-                    placeholder="e.g., Amit Baskey"
+                    placeholder="e.g., Aarav Sharma"
                     className="w-full pl-9 pr-3.5 py-2 text-sm border border-slate-200 rounded-lg focus:border-slate-900"
                   />
                 </div>
@@ -359,7 +364,7 @@ export function AuthModal({
                   maxLength={40}
                   value={regUsername}
                   onChange={(e) => setRegUsername(e.target.value)}
-                  placeholder={suggestedUsername || 'e.g., amit_baskey'}
+                  placeholder={suggestedUsername || 'e.g., aarav_sharma'}
                   className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-lg font-mono focus:border-slate-900"
                 />
                 {suggestedUsername && (

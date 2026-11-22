@@ -154,11 +154,11 @@ export const MemberCard = React.memo(function MemberCard({
         </div>
       </div>
 
-      {/* Quick Actions Bar — shown on hover (desktop) or when selected (desktop & mobile) */}
+      {/* Quick Actions Bar — shown on hover (desktop) or when selected (desktop, tablet & mobile) */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className={`absolute -top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-slate-900 text-white rounded-lg px-1 py-1 shadow-md transition-opacity duration-150 ${
+        className={`absolute -top-11 sm:-top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 bg-slate-900 text-white rounded-lg px-1.5 py-1 shadow-md transition-opacity duration-150 ${
           isSelected
             ? 'opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto'
@@ -169,9 +169,9 @@ export const MemberCard = React.memo(function MemberCard({
           title="View Details"
           aria-label={`View details for ${member.fullName}`}
           onClick={() => onViewDetails(member.id)}
-          className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
+          className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
         >
-          <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+          <Eye className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
         </button>
         {canEdit && (
           <>
@@ -180,18 +180,18 @@ export const MemberCard = React.memo(function MemberCard({
               title="Edit Member"
               aria-label={`Edit ${member.fullName}`}
               onClick={() => onEdit(member.id)}
-              className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
+              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
             >
-              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+              <Pencil className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
             <button
               type="button"
               title="Add Relative"
               aria-label={`Add relative to ${member.fullName}`}
               onClick={() => onAddRelative(member.id)}
-              className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
+              className="p-2 sm:p-1.5 rounded-md hover:bg-slate-700 active:bg-slate-700 transition-colors"
             >
-              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+              <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
             <div className="w-px h-4 bg-slate-700 mx-0.5" aria-hidden="true" />
             <button
@@ -199,9 +199,9 @@ export const MemberCard = React.memo(function MemberCard({
               title="Delete Member"
               aria-label={`Delete ${member.fullName}`}
               onClick={() => onDelete(member.id)}
-              className="p-1.5 rounded-md text-rose-300 hover:bg-rose-600 hover:text-white transition-colors"
+              className="p-2 sm:p-1.5 rounded-md text-rose-300 hover:bg-rose-600 hover:text-white active:bg-rose-600 transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
             </button>
           </>
         )}
@@ -226,7 +226,7 @@ export const MemberCard = React.memo(function MemberCard({
               ? `Expand branch for ${member.fullName}, ${hiddenDescendantCount} hidden descendants`
               : `Collapse branch for ${member.fullName}`
           }
-          className={`absolute -bottom-3.5 left-1/2 -translate-x-1/2 z-10 h-6 px-2 rounded-full border text-[11px] font-mono tabular-nums font-medium flex items-center gap-0.5 transition-colors shadow-xs ${
+          className={`absolute -bottom-4 sm:-bottom-3.5 left-1/2 -translate-x-1/2 z-10 h-7 sm:h-6 min-w-[28px] px-2.5 sm:px-2 rounded-full border text-[11px] font-mono tabular-nums font-medium flex items-center justify-center gap-0.5 transition-colors shadow-xs ${
             isCollapsed
               ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
               : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-slate-900'

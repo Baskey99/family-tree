@@ -89,18 +89,23 @@ export function ShareTreeModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 backdrop-blur-[2px] p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/45 backdrop-blur-[2px] p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="share-tree-modal-title"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full sm:max-w-lg bg-white border-t sm:border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile sheet handle */}
+        <div className="flex justify-center pt-2.5 pb-0.5 sm:hidden shrink-0" aria-hidden="true">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
+        </div>
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-4 shrink-0">
           <div className="min-w-0">
             <h2
               id="share-tree-modal-title"
@@ -123,7 +128,7 @@ export function ShareTreeModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-5 sm:p-6 pb-safe overflow-y-auto space-y-5 sm:space-y-6">
           {/* Family-Only Privacy Notice */}
           <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
             <Lock className="w-4 h-4 text-slate-700 shrink-0 mt-0.5" aria-hidden="true" />
@@ -283,7 +288,7 @@ export function ShareTreeModal({
                     return (
                       <li
                         key={member.id}
-                        className="px-4 py-3 flex items-center justify-between gap-3"
+                        className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3"
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-900 truncate">
@@ -362,7 +367,7 @@ export function ShareTreeModal({
                       return (
                         <li
                           key={invite.id}
-                          className="px-4 py-3 flex items-center justify-between gap-3"
+                          className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3"
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-slate-900 truncate">

@@ -143,27 +143,40 @@ export function MemberDetailsPanel({
     derived.others.length;
 
   return (
-    <aside
-      aria-label="Member details"
-      className="fixed inset-y-0 right-0 z-30 w-full max-w-[380px] bg-white border-l border-slate-200 shadow-xl flex flex-col lg:static lg:shadow-none lg:z-10"
-    >
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-slate-500">Member Profile</p>
-          <h2 className="font-display text-base font-semibold text-slate-900 truncate">
-            {member.fullName}
-          </h2>
+    <>
+      {/* Backdrop scrim on mobile & tablet */}
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        className="fixed inset-0 z-40 bg-slate-900/35 backdrop-blur-[1px] lg:hidden"
+      />
+
+      <aside
+        aria-label="Member details"
+        className="fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:rounded-none sm:w-[380px] bg-white border-t sm:border-t-0 sm:border-l border-slate-200 shadow-2xl flex flex-col lg:static lg:shadow-none lg:z-10 lg:w-[380px] lg:shrink-0"
+      >
+        {/* Mobile sheet drag handle indicator */}
+        <div className="flex justify-center pt-2.5 pb-1 sm:hidden shrink-0" aria-hidden="true">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close member details"
-          className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-        >
-          <X className="w-4 h-4" aria-hidden="true" />
-        </button>
-      </div>
+
+        {/* Top Bar */}
+        <div className="flex items-center justify-between px-5 py-3.5 sm:py-4 border-b border-slate-200 shrink-0">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">Member Profile</p>
+            <h2 className="font-display text-base font-semibold text-slate-900 truncate">
+              {member.fullName}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close member details"
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
 
       {/* Scrollable Body */}
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
@@ -388,7 +401,7 @@ export function MemberDetailsPanel({
       </div>
 
       {/* Footer Danger Zone */}
-      <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50/70 shrink-0 flex items-center justify-between">
+      <div className="px-5 py-3.5 pb-safe border-t border-slate-200 bg-slate-50/70 shrink-0 flex items-center justify-between">
         <span className="text-[11px] text-slate-500 font-mono tabular-nums">
           Updated {new Date(member.updatedAt).toLocaleDateString()}
         </span>
@@ -396,7 +409,7 @@ export function MemberDetailsPanel({
           <button
             type="button"
             onClick={() => onDelete(member)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             Delete Member
@@ -404,5 +417,6 @@ export function MemberDetailsPanel({
         )}
       </div>
     </aside>
+    </>
   );
 }

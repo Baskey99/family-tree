@@ -4,6 +4,8 @@ import {
   Check,
   CheckCircle2,
   Cloud,
+  FolderTree,
+  GitFork,
   Loader2,
   LogIn,
   LogOut,
@@ -11,6 +13,7 @@ import {
   Search,
   Share2,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { useFamilyStore } from './hooks/useFamilyStore';
@@ -231,9 +234,9 @@ export default function App() {
         : null;
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
-      {/* Top Navigation Bar — Clean 3-Zone Contract */}
-      <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 sm:gap-8 shrink-0 z-30">
+    <div className="h-[100dvh] flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
+      {/* Top Navigation Bar — Clean 3-Zone Contract (Desktop/Tablet) + Compact Bar (Mobile) */}
+      <header className="h-14 bg-white border-b border-slate-200 px-3.5 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 shrink-0 z-30">
         {/* Zone 1: Single-line brand wordmark */}
         <button
           type="button"
@@ -243,10 +246,10 @@ export default function App() {
           Kinship
         </button>
 
-        {/* Zone 2: Clean single-line text navigation links */}
+        {/* Zone 2: Clean single-line text navigation links (Tablet & Desktop; Mobile uses Bottom Nav) */}
         <nav
           aria-label="Primary navigation"
-          className="flex items-center gap-5 sm:gap-7 text-sm font-medium"
+          className="hidden md:flex items-center gap-6 lg:gap-7 text-sm font-medium"
         >
           {(
             [
@@ -409,9 +412,9 @@ export default function App() {
       {activeTab === 'tree' && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Family Tree Workspace Subheader */}
-          <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 z-20">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
-              <div className="mr-1">
+          <div className="bg-white border-b border-slate-200 px-3.5 sm:px-6 py-2.5 sm:py-3 flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3 shrink-0 z-20">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+              <div className="hidden md:block mr-1">
                 <h1 className="font-display text-lg font-semibold text-slate-900 leading-tight">
                   Family Tree
                 </h1>
@@ -425,7 +428,7 @@ export default function App() {
               </div>
 
               {store.trees.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full md:w-auto">
                   <label htmlFor="active-tree-select" className="sr-only">
                     Select active family tree
                   </label>
@@ -433,7 +436,7 @@ export default function App() {
                     id="active-tree-select"
                     value={store.activeTreeId}
                     onChange={(e) => handleSwitchTree(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:border-slate-900 max-w-[230px]"
+                    className="flex-1 min-w-0 md:flex-none px-2.5 py-2 md:py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:border-slate-900 md:max-w-[230px]"
                   >
                     {sharedTrees.length > 0 ? (
                       <>
@@ -467,7 +470,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setShareModalTreeId(store.activeTree!.id)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1.5 px-3 md:px-2.5 py-2 md:py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
                     >
                       <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>
@@ -476,6 +479,14 @@ export default function App() {
                     </button>
                   )}
                 </div>
+              )}
+
+              {/* Mobile shared-tree role note (quiet unboxed text) */}
+              {store.activeTree && !store.isOwnerOfActiveTree && (
+                <p className="md:hidden text-[11px] text-slate-500">
+                  Shared by {store.activeTree.ownerName || 'family owner'} ·{' '}
+                  {store.activeTreeRole === 'editor' ? 'Can view & edit' : 'View only'}
+                </p>
               )}
 
               {/* Unboxed quiet metadata */}
@@ -505,7 +516,7 @@ export default function App() {
             </div>
 
             {/* Live Search Family Members Autocomplete */}
-            <div className="relative w-full md:w-80 shrink-0">
+            <div className="relative w-full md:w-64 lg:w-80 shrink-0">
               <Search
                 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
                 aria-hidden="true"
@@ -597,7 +608,7 @@ export default function App() {
                 <Loader2 className="w-6 h-6 text-slate-600 animate-spin" aria-hidden="true" />
                 <p className="text-sm font-medium text-slate-700">
                   {store.seedingCloud
-                    ? 'Syncing attached family trees to Cloud Firestore...'
+                    ? 'Setting up sample family tree in Cloud Firestore...'
                     : 'Loading family tree...'}
                 </p>
               </div>
@@ -697,11 +708,59 @@ export default function App() {
         />
       )}
 
+      {/* Mobile Bottom Navigation Bar (< md) */}
+      <nav
+        aria-label="Mobile navigation"
+        className="md:hidden shrink-0 bg-white border-t border-slate-200 pb-safe z-30"
+      >
+        <div className="grid grid-cols-3 h-14">
+          {(
+            [
+              { id: 'tree', label: 'Family Tree', icon: GitFork },
+              { id: 'directory', label: 'Directory', icon: Users },
+              { id: 'lineages', label: 'Lineages', icon: FolderTree },
+            ] as const
+          ).map((item) => {
+            const Icon = item.icon;
+            const active = activeTab === item.id;
+            const showInviteCount = item.id === 'lineages' && store.incomingInvites.length > 0;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                  active ? 'text-slate-900 font-semibold' : 'text-slate-500'
+                }`}
+              >
+                {active && (
+                  <span
+                    className="absolute top-0 inset-x-6 h-[2px] bg-slate-900 rounded-full"
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="relative">
+                  <Icon className="w-4 h-4" aria-hidden="true" />
+                  {showInviteCount && (
+                    <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-blue-600" />
+                  )}
+                </span>
+                <span>
+                  {showInviteCount
+                    ? `${item.label} (${store.incomingInvites.length})`
+                    : item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {/* Toast Feedback Banner */}
       {feedbackBanner && (
         <div
           role={feedbackBanner.isError ? 'alert' : 'status'}
-          className={`fixed top-16 right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border shadow-lg text-xs font-medium max-w-sm ${
+          className={`fixed top-16 inset-x-3 sm:inset-x-auto sm:right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border shadow-lg text-xs font-medium sm:max-w-sm ${
             feedbackBanner.isError
               ? 'bg-rose-50 border-rose-200 text-rose-800'
               : 'bg-slate-900 border-slate-800 text-white'

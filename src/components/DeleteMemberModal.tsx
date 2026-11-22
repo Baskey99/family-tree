@@ -52,11 +52,11 @@ export function DeleteMemberModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="delete-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/45 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full sm:max-w-md bg-white border-t sm:border border-slate-200 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between px-6 pt-5 pb-4">
@@ -115,12 +115,12 @@ export function DeleteMemberModal({
           </p>
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50 border-t border-slate-200">
+        <div className="flex items-center justify-end gap-2.5 px-5 sm:px-6 py-4 pb-safe bg-slate-50 border-t border-slate-200">
           <button
             type="button"
             disabled={deleting}
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            className="px-4 py-2.5 sm:py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
           >
             Cancel
           </button>
@@ -128,7 +128,7 @@ export function DeleteMemberModal({
             type="button"
             disabled={deleting}
             onClick={() => void handleConfirm()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 sm:py-2 text-xs font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors disabled:opacity-50"
           >
             <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
             {deleting ? 'Deleting...' : 'Delete Member'}

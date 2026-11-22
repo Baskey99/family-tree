@@ -93,12 +93,12 @@ export function LineagesView({
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-6 sm:space-y-8">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-slate-900 tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
             Family Lineages
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Create private family trees, share view or edit access with family members, or open
             lineages shared with you.
           </p>
@@ -187,7 +187,8 @@ export function LineagesView({
           <div className="divide-y divide-slate-200 bg-white border border-slate-200 rounded-2xl overflow-hidden">
             {ownedTrees.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500">
-                No family trees created yet. Create one below or import an attached lineage.
+                No family trees created yet. Create a blank tree below or import the sample family
+                template.
               </div>
             ) : (
               ownedTrees.map((tree) => {
@@ -271,7 +272,7 @@ export function LineagesView({
                     )}
 
                     {!isEditing && (
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
                         {isDeleting ? (
                           <>
                             <span className="text-xs text-rose-700 font-medium mr-1">
@@ -463,10 +464,10 @@ export function LineagesView({
         )}
 
         {/* Create Blank Tree */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
           <form
             onSubmit={handleCreate}
-            className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4"
+            className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4"
           >
             <div className="flex items-center gap-2.5">
               <FolderPlus className="w-5 h-5 text-slate-700" aria-hidden="true" />
@@ -505,17 +506,17 @@ export function LineagesView({
             </button>
           </form>
 
-          {/* Re-import Attached PDF Lineages */}
+          {/* Sample Family Template */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
             <div className="flex items-center gap-2.5">
               <Import className="w-5 h-5 text-slate-700" aria-hidden="true" />
               <h2 className="font-display text-base font-semibold text-slate-900">
-                Attached Diagram Templates
+                Sample Family Template
               </h2>
             </div>
             <p className="text-xs text-slate-500">
-              Create a fresh copy from the lineages extracted from your attached{' '}
-              <span className="font-mono">familytree.drawio.pdf</span>.
+              Import a ready-made 3-generation sample family tree to explore relationships, layout,
+              and sharing.
             </p>
             <div className="space-y-3">
               {SEED_FAMILY_TREES.map((seed) => (

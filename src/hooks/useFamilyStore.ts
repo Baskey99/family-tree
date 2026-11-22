@@ -47,7 +47,8 @@ import type {
   TreeRole,
 } from '../types/family';
 
-const LOCAL_STORAGE_KEY = 'kinship_family_tree_workspace_v1';
+const LEGACY_LOCAL_STORAGE_KEY = 'kinship_family_tree_workspace_v1';
+const LOCAL_STORAGE_KEY = 'kinship_family_tree_workspace_v2';
 
 interface LocalWorkspaceData {
   trees: FamilyTreeRecord[];
@@ -141,6 +142,7 @@ function buildSeedWorkspace(): LocalWorkspaceData {
 
 function loadLocalWorkspace(): LocalWorkspaceData {
   try {
+    localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as LocalWorkspaceData;
@@ -353,7 +355,7 @@ export function useFamilyStore() {
               if (!firstId) firstId = id;
             }
             if (firstId) setActiveTreeId(firstId);
-            flashSaved('Imported attached family trees to Cloud Firestore');
+            flashSaved('Created starter sample family tree in Cloud Firestore');
           } catch (err) {
             flashError(err instanceof Error ? err.message : 'Failed to initialize cloud trees.');
           } finally {
