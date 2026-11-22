@@ -33,6 +33,7 @@ export interface FamilyTreeCanvasHandle {
 
 interface FamilyTreeCanvasProps {
   treeName: string;
+  canEdit?: boolean;
   layout: TreeLayoutResult;
   selectedMemberId: string | null;
   highlightedMemberId: string | null;
@@ -56,6 +57,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
   function FamilyTreeCanvas(
     {
       treeName,
+      canEdit = true,
       layout,
       selectedMemberId,
       highlightedMemberId,
@@ -374,22 +376,24 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
             </div>
             <div className="space-y-2">
               <h2 className="font-display text-xl font-semibold text-slate-900">
-                Start your family tree
+                {canEdit ? 'Start your family tree' : 'This family tree is empty'}
               </h2>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Add your first family member to begin mapping generations. Parents, spouses,
-                children, siblings, and cousins will automatically arrange themselves as you grow
-                the tree.
+                {canEdit
+                  ? 'Add your first family member to begin mapping generations. Parents, spouses, children, siblings, and cousins will automatically arrange themselves as you grow the tree.'
+                  : 'No family members have been added to this shared tree yet. You currently have view-only access.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onAddFirstMember}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              <UserPlus className="w-4 h-4" aria-hidden="true" />
-              Add Family Member
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={onAddFirstMember}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <UserPlus className="w-4 h-4" aria-hidden="true" />
+                Add Family Member
+              </button>
+            )}
           </div>
         </div>
       );
@@ -506,6 +510,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
               <MemberCard
                 key={node.member.id}
                 node={node}
+                canEdit={canEdit}
                 isSelected={selectedMemberId === node.member.id}
                 isHighlighted={highlightedMemberId === node.member.id}
                 isDimmed={

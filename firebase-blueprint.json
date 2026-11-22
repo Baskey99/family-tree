@@ -1,39 +1,77 @@
 {
   "entities": {
-    "FamilyTree": {
-      "title": "FamilyTree",
-      "description": "A top-level family tree workspace owned by a single authenticated user.",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile metadata owned strictly by the authenticated user.",
       "type": "object",
       "properties": {
-        "ownerId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "Authenticated user UID who owns this family tree."
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120,
-          "description": "Display name of the family tree."
-        },
-        "description": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 400,
-          "description": "Optional summary description of the family lineage."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when the tree was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when the tree was last updated."
-        }
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "username": { "type": "string", "minLength": 2, "maxLength": 40, "pattern": "^[a-z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "displayName", "username", "email", "createdAt", "updatedAt"]
+    },
+    "UsernameLookup": {
+      "title": "UsernameLookup",
+      "description": "Exact-key username to email lookup for username login and inviting family members by username.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "email", "createdAt"]
+    },
+    "TreeInvite": {
+      "title": "TreeInvite",
+      "description": "Private invitation granting a family member viewer or editor access to a specific family tree.",
+      "type": "object",
+      "properties": {
+        "treeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "treeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "inviteeEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "role": { "type": "string", "enum": ["viewer", "editor"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["treeId", "treeName", "ownerId", "ownerName", "inviteeEmail", "role", "createdAt", "updatedAt"]
+    },
+    "TreeMembership": {
+      "title": "TreeMembership",
+      "description": "Active RBAC access grant connecting an invited family member (viewer or editor) to a shared family tree.",
+      "type": "object",
+      "properties": {
+        "treeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "treeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "userName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["viewer", "editor"] },
+        "inviteId": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["treeId", "treeName", "ownerId", "ownerName", "userId", "userEmail", "userName", "role", "inviteId", "createdAt", "updatedAt"]
+    },
+    "FamilyTree": {
+      "title": "FamilyTree",
+      "description": "Private family tree workspace owned by a user and optionally shared with invited family members.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "ownerEmail": { "type": "string", "minLength": 0, "maxLength": 254 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 0, "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["ownerId", "name", "description", "createdAt", "updatedAt"]
     },
@@ -42,157 +80,64 @@
       "description": "A profile record for a single individual within a family tree.",
       "type": "object",
       "properties": {
-        "treeId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "Identifier of the parent family tree."
-        },
-        "ownerId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "UID of the tree owner for O(1) secure list queries."
-        },
-        "fullName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 140,
-          "description": "Full name of the family member."
-        },
-        "gender": {
-          "type": "string",
-          "enum": ["male", "female"],
-          "description": "Gender of the family member."
-        },
-        "dateOfBirth": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 32,
-          "description": "Optional ISO date of birth (YYYY-MM-DD) or empty string."
-        },
-        "manualAge": {
-          "type": "number",
-          "description": "Optional manual age (0-130) when DOB is not provided, or null."
-        },
-        "address": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 250,
-          "description": "Optional home address or ancestral village."
-        },
-        "photoUrl": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 65000,
-          "description": "Optional compressed profile avatar data URL or HTTPS image URL."
-        },
-        "notes": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 1000,
-          "description": "Optional biographical notes or nicknames."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when the member record was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when the member record was last modified."
-        }
+        "treeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "dateOfBirth": { "type": "string", "minLength": 0, "maxLength": 32 },
+        "manualAge": { "type": "number" },
+        "address": { "type": "string", "minLength": 0, "maxLength": 250 },
+        "photoUrl": { "type": "string", "minLength": 0, "maxLength": 65000 },
+        "notes": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "treeId",
-        "ownerId",
-        "fullName",
-        "gender",
-        "dateOfBirth",
-        "manualAge",
-        "address",
-        "photoUrl",
-        "notes",
-        "createdAt",
-        "updatedAt"
-      ]
+      "required": ["treeId", "ownerId", "fullName", "gender", "dateOfBirth", "manualAge", "address", "photoUrl", "notes", "createdAt", "updatedAt"]
     },
     "FamilyRelationship": {
       "title": "FamilyRelationship",
       "description": "A relationship edge connecting two members within a family tree.",
       "type": "object",
       "properties": {
-        "treeId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "Identifier of the parent family tree."
-        },
-        "ownerId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "UID of the tree owner for O(1) secure list queries."
-        },
-        "personId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "Source member ID (e.g., parent for parent_child)."
-        },
-        "relatedPersonId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$",
-          "description": "Target member ID (e.g., child for parent_child)."
-        },
-        "relationshipType": {
-          "type": "string",
-          "enum": ["parent_child", "spouse", "sibling", "cousin", "other"],
-          "description": "Semantic relationship category."
-        },
-        "customLabel": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 80,
-          "description": "Optional custom label when relationshipType is 'other'."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when the relationship was created."
-        }
+        "treeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "personId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "relatedPersonId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "relationshipType": { "type": "string", "enum": ["parent_child", "spouse", "sibling", "cousin", "other"] },
+        "customLabel": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "treeId",
-        "ownerId",
-        "personId",
-        "relatedPersonId",
-        "relationshipType",
-        "customLabel",
-        "createdAt"
-      ]
+      "required": ["treeId", "ownerId", "personId", "relatedPersonId", "relationshipType", "customLabel", "createdAt"]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profiles accessible only to the owning user."
+    },
+    "/usernames/{usernameKey}": {
+      "schema": { "$ref": "#/entities/UsernameLookup" },
+      "description": "Exact-key username lookup for login and username-based family invitations."
+    },
+    "/tree_invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/TreeInvite" },
+      "description": "Pending family tree invitations readable only by the tree owner and invited email."
+    },
+    "/tree_memberships/{membershipId}": {
+      "schema": { "$ref": "#/entities/TreeMembership" },
+      "description": "Active viewer/editor memberships enforcing family-only access isolation."
+    },
     "/family_trees/{treeId}": {
       "schema": { "$ref": "#/entities/FamilyTree" },
-      "description": "Owner-scoped family tree workspaces."
+      "description": "Private family trees accessible strictly to owner and invited family members."
     },
     "/family_trees/{treeId}/members/{memberId}": {
       "schema": { "$ref": "#/entities/FamilyMember" },
-      "description": "Family member profiles belonging to a specific family tree."
+      "description": "Family members readable by owner/viewer/editor and writable only by owner/editor."
     },
     "/family_trees/{treeId}/relationships/{relationshipId}": {
       "schema": { "$ref": "#/entities/FamilyRelationship" },
-      "description": "Relationship links between family members inside a family tree."
+      "description": "Family relationships readable by owner/viewer/editor and writable only by owner/editor."
     }
   }
 }

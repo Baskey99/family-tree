@@ -4,6 +4,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -19,7 +20,10 @@ import {
   auth,
   db,
   handleFirestoreError,
+  loginWithUsernameOrEmail,
+  normalizeUsernameKey,
   OperationType,
+  registerWithEmailPassword,
   signInWithGoogle,
   signOutUser,
 } from '../lib/firebase';
@@ -36,7 +40,11 @@ import type {
   FormRelationshipType,
   Gender,
   SeedTreeTemplate,
+  ShareRole,
   StoredRelationshipType,
+  TreeInvite,
+  TreeMembership,
+  TreeRole,
 } from '../types/family';
 
 const LOCAL_STORAGE_KEY = 'kinship_family_tree_workspace_v1';
@@ -69,11 +77,26 @@ export interface MemberInputPayload {
 
 function formatFirestoreTimestamp(val: unknown): string {
   if (val instanceof Timestamp) return val.toDate().toISOString();
-  if (val && typeof val === 'object' && 'toDate' in val && typeof (val as { toDate: () => Date }).toDate === 'function') {
+  if (
+    val &&
+    typeof val === 'object' &&
+    'toDate' in val &&
+    typeof (val as { toDate: () => Date }).toDate === 'function'
+  ) {
     return (val as { toDate: () => Date }).toDate().toISOString();
   }
   if (typeof val === 'string') return val;
   return new Date().toISOString();
+}
+
+function getUserDisplayName(user: User): string {
+  if (user.displayName && user.displayName.trim()) {
+    return user.displayName.trim().slice(0, 120);
+  }
+  if (user.email) {
+    return user.email.split('@')[0].slice(0, 120);
+  }
+  return 'Family Owner';
 }
 
 function buildSeedWorkspace(): LocalWorkspaceData {
@@ -86,10 +109,12 @@ function buildSeedWorkspace(): LocalWorkspaceData {
     trees.push({
       id: seed.id,
       ownerId: 'local_guest',
+      ownerName: 'You',
       name: seed.name,
       description: seed.description,
       createdAt: now,
       updatedAt: now,
+      accessRole: 'owner',
     });
     membersByTree[seed.id] = seed.members.map((m) => ({
       ...m,
@@ -120,7 +145,10 @@ function loadLocalWorkspace(): LocalWorkspaceData {
     if (raw) {
       const parsed = JSON.parse(raw) as LocalWorkspaceData;
       if (Array.isArray(parsed.trees)) {
-        return parsed;
+        return {
+          ...parsed,
+          trees: parsed.trees.map((t) => ({ ...t, accessRole: 'owner' })),
+        };
       }
     }
   } catch {
@@ -148,9 +176,15 @@ export function useFamilyStore() {
   const [authReady, setAuthReady] = useState(false);
 
   const [localData, setLocalData] = useState<LocalWorkspaceData>(() => loadLocalWorkspace());
-  const [cloudTrees, setCloudTrees] = useState<FamilyTreeRecord[]>([]);
+  const [ownedCloudTrees, setOwnedCloudTrees] = useState<FamilyTreeRecord[]>([]);
+  const [sharedCloudTrees, setSharedCloudTrees] = useState<FamilyTreeRecord[]>([]);
   const [cloudMembers, setCloudMembers] = useState<FamilyMember[]>([]);
   const [cloudRelationships, setCloudRelationships] = useState<FamilyRelationship[]>([]);
+
+  // Sharing & Collaboration state
+  const [incomingInvites, setIncomingInvites] = useState<TreeInvite[]>([]);
+  const [ownedTreeCollaborators, setOwnedTreeCollaborators] = useState<TreeMembership[]>([]);
+  const [ownedTreeInvites, setOwnedTreeInvites] = useState<TreeInvite[]>([]);
 
   const [activeTreeId, setActiveTreeId] = useState<string>(() => localData.activeTreeId);
   const [loading, setLoading] = useState(false);
@@ -170,7 +204,7 @@ export function useFamilyStore() {
     savedTimerRef.current = window.setTimeout(() => {
       setSyncStatus('idle');
       setStatusMessage('');
-    }, 3200);
+    }, 3400);
   }, []);
 
   const flashError = useCallback((msg: string) => {
@@ -195,6 +229,8 @@ export function useFamilyStore() {
       try {
         await setDoc(doc(db, 'family_trees', treeId), {
           ownerId: currentUser.uid,
+          ownerName: getUserDisplayName(currentUser),
+          ownerEmail: (currentUser.email || '').toLowerCase().slice(0, 254),
           name: template.name.slice(0, 120),
           description: template.description.slice(0, 400),
           createdAt: serverTimestamp(),
@@ -205,7 +241,6 @@ export function useFamilyStore() {
       }
 
       // Batch write members + relationships in chunks of 350 ops (Firestore limit is 500)
-      const ops: Array<() => void> = [];
       let batch = writeBatch(db);
       let count = 0;
 
@@ -262,18 +297,21 @@ export function useFamilyStore() {
           handleFirestoreError(error, OperationType.WRITE, `family_trees/${treeId}`);
         }
       }
-      void ops;
       return treeId;
     },
     []
   );
 
-  // Subscribe to user's family_trees in Firestore when signed in
+  // 1. Subscribe to user's OWNED family_trees in Firestore
   useEffect(() => {
     if (!authReady || !user) {
-      setCloudTrees([]);
+      setOwnedCloudTrees([]);
+      setSharedCloudTrees([]);
       setCloudMembers([]);
       setCloudRelationships([]);
+      setIncomingInvites([]);
+      setOwnedTreeCollaborators([]);
+      setOwnedTreeInvites([]);
       return;
     }
 
@@ -287,20 +325,23 @@ export function useFamilyStore() {
       treesQuery,
       async (snapshot) => {
         const list: FamilyTreeRecord[] = snapshot.docs
-          .map((d) => {
+          .map((d): FamilyTreeRecord => {
             const data = d.data();
             return {
               id: d.id,
               ownerId: String(data.ownerId || ''),
+              ownerName: String(data.ownerName || getUserDisplayName(user)),
+              ownerEmail: String(data.ownerEmail || user.email || ''),
               name: String(data.name || 'Untitled Tree'),
               description: String(data.description || ''),
               createdAt: formatFirestoreTimestamp(data.createdAt),
               updatedAt: formatFirestoreTimestamp(data.updatedAt),
+              accessRole: 'owner',
             };
           })
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-        setCloudTrees(list);
+        setOwnedCloudTrees(list);
 
         if (list.length === 0 && !hasAutoSeededRef.current.has(user.uid)) {
           hasAutoSeededRef.current.add(user.uid);
@@ -322,10 +363,6 @@ export function useFamilyStore() {
           return;
         }
 
-        setActiveTreeId((prev) => {
-          if (list.some((t) => t.id === prev)) return prev;
-          return list[0]?.id || '';
-        });
         setLoading(false);
       },
       (error) => {
@@ -337,39 +374,270 @@ export function useFamilyStore() {
     return () => unsub();
   }, [authReady, user, importSeedTreeToCloud, flashSaved, flashError]);
 
-  // Subscribe to active tree's members and relationships in Firestore
+  // 2. Subscribe to SHARED trees (memberships where current user is a collaborator)
   useEffect(() => {
-    if (!authReady || !user || !activeTreeId) {
+    if (!authReady || !user) {
+      setSharedCloudTrees([]);
+      return;
+    }
+
+    let cancelled = false;
+    const myMembershipsQuery = query(
+      collection(db, 'tree_memberships'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsub = onSnapshot(
+      myMembershipsQuery,
+      async (snap) => {
+        const memberships: TreeMembership[] = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            treeId: String(data.treeId || ''),
+            treeName: String(data.treeName || 'Shared Family Tree'),
+            ownerId: String(data.ownerId || ''),
+            ownerName: String(data.ownerName || 'Family Owner'),
+            userId: String(data.userId || ''),
+            userEmail: String(data.userEmail || ''),
+            userName: String(data.userName || ''),
+            role: data.role === 'editor' ? 'editor' : 'viewer',
+            inviteId: String(data.inviteId || ''),
+            createdAt: formatFirestoreTimestamp(data.createdAt),
+            updatedAt: formatFirestoreTimestamp(data.updatedAt),
+          };
+        });
+
+        const resolved = await Promise.all(
+          memberships.map(async (m): Promise<FamilyTreeRecord | null> => {
+            if (!m.treeId) return null;
+            try {
+              const treeSnap = await getDoc(doc(db, 'family_trees', m.treeId));
+              if (!treeSnap.exists()) {
+                return null;
+              }
+              const tData = treeSnap.data();
+              return {
+                id: treeSnap.id,
+                ownerId: String(tData.ownerId || m.ownerId),
+                ownerName: String(tData.ownerName || m.ownerName || 'Family Owner'),
+                ownerEmail: String(tData.ownerEmail || ''),
+                name: String(tData.name || m.treeName),
+                description: String(tData.description || ''),
+                createdAt: formatFirestoreTimestamp(tData.createdAt),
+                updatedAt: formatFirestoreTimestamp(tData.updatedAt),
+                accessRole: m.role,
+                membershipId: m.id,
+              };
+            } catch {
+              // If permission was just revoked or tree deleted, skip cleanly
+              return null;
+            }
+          })
+        );
+
+        if (!cancelled) {
+          const validShared = resolved
+            .filter((item): item is FamilyTreeRecord => item !== null)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setSharedCloudTrees(validShared);
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'tree_memberships');
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, [authReady, user]);
+
+  // 3. Subscribe to INCOMING pending invites for the current user's email
+  useEffect(() => {
+    const email = user?.email?.trim().toLowerCase();
+    if (!authReady || !user || !email) {
+      setIncomingInvites([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'tree_invites'),
+      where('inviteeEmail', '==', email)
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: TreeInvite[] = snap.docs
+          .map((d): TreeInvite => {
+            const data = d.data();
+            return {
+              id: d.id,
+              treeId: String(data.treeId || ''),
+              treeName: String(data.treeName || 'Family Tree'),
+              ownerId: String(data.ownerId || ''),
+              ownerName: String(data.ownerName || 'Family Member'),
+              inviteeEmail: String(data.inviteeEmail || ''),
+              role: data.role === 'editor' ? 'editor' : 'viewer',
+              createdAt: formatFirestoreTimestamp(data.createdAt),
+              updatedAt: formatFirestoreTimestamp(data.updatedAt),
+            };
+          })
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setIncomingInvites(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'tree_invites');
+      }
+    );
+
+    return () => unsub();
+  }, [authReady, user]);
+
+  // 4. Subscribe to COLLABORATORS & OUTGOING INVITES on trees owned by current user
+  //    (Uses single-field ownerId query so zero manual composite indexes are required!)
+  useEffect(() => {
+    if (!authReady || !user) {
+      setOwnedTreeCollaborators([]);
+      setOwnedTreeInvites([]);
+      return;
+    }
+
+    const collabQuery = query(
+      collection(db, 'tree_memberships'),
+      where('ownerId', '==', user.uid)
+    );
+    const outInvitesQuery = query(
+      collection(db, 'tree_invites'),
+      where('ownerId', '==', user.uid)
+    );
+
+    const unsubCollab = onSnapshot(
+      collabQuery,
+      (snap) => {
+        const list: TreeMembership[] = snap.docs
+          .map((d): TreeMembership => {
+            const data = d.data();
+            return {
+              id: d.id,
+              treeId: String(data.treeId || ''),
+              treeName: String(data.treeName || ''),
+              ownerId: String(data.ownerId || ''),
+              ownerName: String(data.ownerName || ''),
+              userId: String(data.userId || ''),
+              userEmail: String(data.userEmail || ''),
+              userName: String(data.userName || ''),
+              role: data.role === 'editor' ? 'editor' : 'viewer',
+              inviteId: String(data.inviteId || ''),
+              createdAt: formatFirestoreTimestamp(data.createdAt),
+              updatedAt: formatFirestoreTimestamp(data.updatedAt),
+            };
+          })
+          .sort((a, b) => a.userEmail.localeCompare(b.userEmail));
+        setOwnedTreeCollaborators(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'tree_memberships');
+      }
+    );
+
+    const unsubInvites = onSnapshot(
+      outInvitesQuery,
+      (snap) => {
+        const list: TreeInvite[] = snap.docs
+          .map((d): TreeInvite => {
+            const data = d.data();
+            return {
+              id: d.id,
+              treeId: String(data.treeId || ''),
+              treeName: String(data.treeName || ''),
+              ownerId: String(data.ownerId || ''),
+              ownerName: String(data.ownerName || ''),
+              inviteeEmail: String(data.inviteeEmail || ''),
+              role: data.role === 'editor' ? 'editor' : 'viewer',
+              createdAt: formatFirestoreTimestamp(data.createdAt),
+              updatedAt: formatFirestoreTimestamp(data.updatedAt),
+            };
+          })
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setOwnedTreeInvites(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'tree_invites');
+      }
+    );
+
+    return () => {
+      unsubCollab();
+      unsubInvites();
+    };
+  }, [authReady, user]);
+
+  // Unified cloud trees = Owned trees first, then Shared trees (deduplicated)
+  const cloudTrees = useMemo(() => {
+    const ownedIds = new Set(ownedCloudTrees.map((t) => t.id));
+    const uniqueShared = sharedCloudTrees.filter((t) => !ownedIds.has(t.id));
+    return [...ownedCloudTrees, ...uniqueShared];
+  }, [ownedCloudTrees, sharedCloudTrees]);
+
+  // Unified data selectors (Cloud when signed in, LocalStorage when browsing before sign-in)
+  const isCloudMode = Boolean(user);
+
+  const trees = useMemo(
+    () => (isCloudMode ? cloudTrees : localData.trees),
+    [isCloudMode, cloudTrees, localData.trees]
+  );
+
+  const effectiveActiveTreeId = useMemo(() => {
+    if (trees.some((t) => t.id === activeTreeId)) return activeTreeId;
+    return trees[0]?.id || '';
+  }, [trees, activeTreeId]);
+
+  const activeTree = useMemo(
+    () => trees.find((t) => t.id === effectiveActiveTreeId) || null,
+    [trees, effectiveActiveTreeId]
+  );
+
+  const activeTreeRole: TreeRole = useMemo(() => {
+    if (!activeTree) return 'owner';
+    return activeTree.accessRole || 'owner';
+  }, [activeTree]);
+
+  const isOwnerOfActiveTree = activeTreeRole === 'owner';
+  const canEditActiveTree = activeTreeRole === 'owner' || activeTreeRole === 'editor';
+
+  // 5. Subscribe to active tree's members and relationships in Firestore
+  //    (No ownerId filter so accepted viewers/editors can read shared trees!)
+  useEffect(() => {
+    if (!authReady || !user || !effectiveActiveTreeId) {
       setCloudMembers([]);
       setCloudRelationships([]);
       return;
     }
-    if (!cloudTrees.some((t) => t.id === activeTreeId)) {
+    if (!cloudTrees.some((t) => t.id === effectiveActiveTreeId)) {
+      setCloudMembers([]);
+      setCloudRelationships([]);
       return;
     }
 
-    const membersPath = `family_trees/${activeTreeId}/members`;
-    const relsPath = `family_trees/${activeTreeId}/relationships`;
+    const membersPath = `family_trees/${effectiveActiveTreeId}/members`;
+    const relsPath = `family_trees/${effectiveActiveTreeId}/relationships`;
 
-    const membersQuery = query(
-      collection(db, 'family_trees', activeTreeId, 'members'),
-      where('ownerId', '==', user.uid)
-    );
-    const relsQuery = query(
-      collection(db, 'family_trees', activeTreeId, 'relationships'),
-      where('ownerId', '==', user.uid)
-    );
+    const membersCol = collection(db, 'family_trees', effectiveActiveTreeId, 'members');
+    const relsCol = collection(db, 'family_trees', effectiveActiveTreeId, 'relationships');
 
     const unsubMembers = onSnapshot(
-      membersQuery,
+      membersCol,
       (snap) => {
         const list: FamilyMember[] = snap.docs
           .map((d): FamilyMember => {
             const data = d.data();
             return {
               id: d.id,
-              treeId: String(data.treeId || activeTreeId),
-              ownerId: String(data.ownerId || user.uid),
+              treeId: String(data.treeId || effectiveActiveTreeId),
+              ownerId: String(data.ownerId || ''),
               fullName: String(data.fullName || ''),
               gender: data.gender === 'female' ? 'female' : 'male',
               dateOfBirth: String(data.dateOfBirth || ''),
@@ -390,14 +658,14 @@ export function useFamilyStore() {
     );
 
     const unsubRels = onSnapshot(
-      relsQuery,
+      relsCol,
       (snap) => {
         const list: FamilyRelationship[] = snap.docs.map((d) => {
           const data = d.data();
           return {
             id: d.id,
-            treeId: String(data.treeId || activeTreeId),
-            ownerId: String(data.ownerId || user.uid),
+            treeId: String(data.treeId || effectiveActiveTreeId),
+            ownerId: String(data.ownerId || ''),
             personId: String(data.personId || ''),
             relatedPersonId: String(data.relatedPersonId || ''),
             relationshipType: (data.relationshipType || 'other') as StoredRelationshipType,
@@ -416,25 +684,7 @@ export function useFamilyStore() {
       unsubMembers();
       unsubRels();
     };
-  }, [authReady, user, activeTreeId, cloudTrees]);
-
-  // Unified data selectors (Cloud when signed in, LocalStorage when browsing before sign-in)
-  const isCloudMode = Boolean(user);
-
-  const trees = useMemo(
-    () => (isCloudMode ? cloudTrees : localData.trees),
-    [isCloudMode, cloudTrees, localData.trees]
-  );
-
-  const effectiveActiveTreeId = useMemo(() => {
-    if (trees.some((t) => t.id === activeTreeId)) return activeTreeId;
-    return trees[0]?.id || '';
-  }, [trees, activeTreeId]);
-
-  const activeTree = useMemo(
-    () => trees.find((t) => t.id === effectiveActiveTreeId) || null,
-    [trees, effectiveActiveTreeId]
-  );
+  }, [authReady, user, effectiveActiveTreeId, cloudTrees]);
 
   const members = useMemo(
     () => (isCloudMode ? cloudMembers : localData.membersByTree[effectiveActiveTreeId] || []),
@@ -472,6 +722,8 @@ export function useFamilyStore() {
         try {
           await setDoc(doc(db, 'family_trees', newTreeId), {
             ownerId: user.uid,
+            ownerName: getUserDisplayName(user),
+            ownerEmail: (user.email || '').toLowerCase().slice(0, 254),
             name: cleanName,
             description: cleanDesc,
             createdAt: serverTimestamp(),
@@ -489,10 +741,12 @@ export function useFamilyStore() {
         const tree: FamilyTreeRecord = {
           id: newTreeId,
           ownerId: 'local_guest',
+          ownerName: 'You',
           name: cleanName,
           description: cleanDesc,
           createdAt: now,
           updatedAt: now,
+          accessRole: 'owner',
         };
         setLocalData((prev) => {
           const next: LocalWorkspaceData = {
@@ -514,6 +768,10 @@ export function useFamilyStore() {
 
   const renameTree = useCallback(
     async (treeId: string, name: string, description: string): Promise<void> => {
+      const target = trees.find((t) => t.id === treeId);
+      if (target && target.accessRole && target.accessRole !== 'owner') {
+        throw new Error('Only the tree owner can rename this family tree.');
+      }
       const cleanName = name.trim().slice(0, 120);
       const cleanDesc = description.trim().slice(0, 400);
       if (!cleanName) throw new Error('Tree name is required.');
@@ -526,6 +784,27 @@ export function useFamilyStore() {
             description: cleanDesc,
             updatedAt: serverTimestamp(),
           });
+
+          // Keep treeName synced in memberships & pending invites (best-effort)
+          const matchingCollabs = ownedTreeCollaborators.filter((c) => c.treeId === treeId);
+          const matchingInvites = ownedTreeInvites.filter((i) => i.treeId === treeId);
+          if (matchingCollabs.length > 0 || matchingInvites.length > 0) {
+            const batch = writeBatch(db);
+            for (const c of matchingCollabs) {
+              batch.update(doc(db, 'tree_memberships', c.id), {
+                treeName: cleanName,
+                updatedAt: serverTimestamp(),
+              });
+            }
+            for (const inv of matchingInvites) {
+              batch.update(doc(db, 'tree_invites', inv.id), {
+                treeName: cleanName,
+                updatedAt: serverTimestamp(),
+              });
+            }
+            await batch.commit().catch(() => {});
+          }
+
           flashSaved('Updated family tree details');
         } catch (error) {
           flashError('Could not update family tree.');
@@ -537,7 +816,9 @@ export function useFamilyStore() {
           const next: LocalWorkspaceData = {
             ...prev,
             trees: prev.trees.map((t) =>
-              t.id === treeId ? { ...t, name: cleanName, description: cleanDesc, updatedAt: now } : t
+              t.id === treeId
+                ? { ...t, name: cleanName, description: cleanDesc, updatedAt: now }
+                : t
             ),
           };
           saveLocalWorkspace(next);
@@ -546,22 +827,35 @@ export function useFamilyStore() {
         flashSaved('Updated family tree details');
       }
     },
-    [user, flashSaved, flashError]
+    [trees, user, ownedTreeCollaborators, ownedTreeInvites, flashSaved, flashError]
   );
 
   const deleteTree = useCallback(
     async (treeId: string): Promise<void> => {
+      const target = trees.find((t) => t.id === treeId);
+      if (target && target.accessRole && target.accessRole !== 'owner') {
+        throw new Error('Only the tree owner can delete this family tree.');
+      }
+
       setSyncStatus('saving');
       if (user) {
         try {
-          // Delete subcollection documents first in batches, then tree document
-          const membersSnap = await getDocs(
-            query(collection(db, 'family_trees', treeId, 'members'), where('ownerId', '==', user.uid))
-          );
-          const relsSnap = await getDocs(
-            query(collection(db, 'family_trees', treeId, 'relationships'), where('ownerId', '==', user.uid))
-          );
-          const allRefs = [...membersSnap.docs.map((d) => d.ref), ...relsSnap.docs.map((d) => d.ref)];
+          // Delete subcollection documents + sharing records first, then tree document
+          const membersSnap = await getDocs(collection(db, 'family_trees', treeId, 'members'));
+          const relsSnap = await getDocs(collection(db, 'family_trees', treeId, 'relationships'));
+          const collabRefs = ownedTreeCollaborators
+            .filter((c) => c.treeId === treeId)
+            .map((c) => doc(db, 'tree_memberships', c.id));
+          const inviteRefs = ownedTreeInvites
+            .filter((i) => i.treeId === treeId)
+            .map((i) => doc(db, 'tree_invites', i.id));
+
+          const allRefs = [
+            ...membersSnap.docs.map((d) => d.ref),
+            ...relsSnap.docs.map((d) => d.ref),
+            ...collabRefs,
+            ...inviteRefs,
+          ];
           for (let i = 0; i < allRefs.length; i += 350) {
             const batch = writeBatch(db);
             for (const ref of allRefs.slice(i, i + 350)) batch.delete(ref);
@@ -593,7 +887,7 @@ export function useFamilyStore() {
         flashSaved('Deleted family tree');
       }
     },
-    [user, flashSaved, flashError]
+    [trees, user, ownedTreeCollaborators, ownedTreeInvites, flashSaved, flashError]
   );
 
   const importTemplateTree = useCallback(
@@ -617,10 +911,12 @@ export function useFamilyStore() {
         const newTree: FamilyTreeRecord = {
           id: newId,
           ownerId: 'local_guest',
+          ownerName: 'You',
           name: template.name,
           description: template.description,
           createdAt: now,
           updatedAt: now,
+          accessRole: 'owner',
         };
         setLocalData((prev) => {
           const next: LocalWorkspaceData = {
@@ -657,12 +953,257 @@ export function useFamilyStore() {
     [user, importSeedTreeToCloud, flashSaved, flashError]
   );
 
+  // --- Sharing & Family Collaboration ---
+  const inviteFamilyMember = useCallback(
+    async (treeId: string, identifier: string, role: ShareRole): Promise<void> => {
+      if (!user) {
+        throw new Error('Please sign in first to share a family tree.');
+      }
+      const targetTree = ownedCloudTrees.find((t) => t.id === treeId);
+      if (!targetTree) {
+        throw new Error('Only the owner of this family tree can send invitations.');
+      }
+
+      const trimmed = identifier.trim();
+      if (!trimmed) {
+        throw new Error('Enter your family member’s email address or username.');
+      }
+
+      let inviteeEmail = '';
+      if (trimmed.includes('@')) {
+        inviteeEmail = trimmed.toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteeEmail)) {
+          throw new Error('Please enter a valid email address.');
+        }
+      } else {
+        const usernameKey = normalizeUsernameKey(trimmed);
+        if (usernameKey.length < 2) {
+          throw new Error('Enter a valid username (at least 2 characters) or email address.');
+        }
+        let lookupSnap;
+        try {
+          lookupSnap = await getDoc(doc(db, 'usernames', usernameKey));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `usernames/${usernameKey}`);
+        }
+        if (!lookupSnap.exists()) {
+          throw new Error(
+            `No account found for username "${trimmed}". You can invite them directly using their email address.`
+          );
+        }
+        const data = lookupSnap.data();
+        if (!data?.email || typeof data.email !== 'string') {
+          throw new Error('Could not resolve email for that username. Try entering their email.');
+        }
+        inviteeEmail = data.email.trim().toLowerCase();
+      }
+
+      const myEmail = (user.email || '').trim().toLowerCase();
+      if (myEmail && inviteeEmail === myEmail) {
+        throw new Error('You already own this family tree.');
+      }
+
+      if (
+        ownedTreeCollaborators.some(
+          (c) => c.treeId === treeId && c.userEmail.toLowerCase() === inviteeEmail
+        )
+      ) {
+        throw new Error('This family member already has access to this tree.');
+      }
+
+      if (
+        ownedTreeInvites.some(
+          (i) => i.treeId === treeId && i.inviteeEmail.toLowerCase() === inviteeEmail
+        )
+      ) {
+        throw new Error('An invitation is already pending for this email address.');
+      }
+
+      const inviteId = generateSafeId('inv');
+      setSyncStatus('saving');
+      try {
+        await setDoc(doc(db, 'tree_invites', inviteId), {
+          treeId: targetTree.id,
+          treeName: targetTree.name.slice(0, 120),
+          ownerId: user.uid,
+          ownerName: getUserDisplayName(user),
+          inviteeEmail: inviteeEmail.slice(0, 254),
+          role,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        flashSaved(`Invited ${inviteeEmail}`);
+      } catch (error) {
+        flashError('Could not send invitation.');
+        handleFirestoreError(error, OperationType.CREATE, `tree_invites/${inviteId}`);
+      }
+    },
+    [user, ownedCloudTrees, ownedTreeCollaborators, ownedTreeInvites, flashSaved, flashError]
+  );
+
+  const updateInviteRole = useCallback(
+    async (inviteId: string, role: ShareRole): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await updateDoc(doc(db, 'tree_invites', inviteId), {
+          role,
+          updatedAt: serverTimestamp(),
+        });
+        flashSaved('Updated pending invitation permission');
+      } catch (error) {
+        flashError('Could not update invitation.');
+        handleFirestoreError(error, OperationType.UPDATE, `tree_invites/${inviteId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const cancelInvite = useCallback(
+    async (inviteId: string): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await deleteDoc(doc(db, 'tree_invites', inviteId));
+        flashSaved('Cancelled invitation');
+      } catch (error) {
+        flashError('Could not cancel invitation.');
+        handleFirestoreError(error, OperationType.DELETE, `tree_invites/${inviteId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const acceptInvite = useCallback(
+    async (invite: TreeInvite): Promise<void> => {
+      if (!user || !user.email) {
+        throw new Error('Please sign in with your invited email address to accept.');
+      }
+      const myEmail = user.email.trim().toLowerCase();
+      const membershipId = `${invite.treeId}__${user.uid}`;
+      setSyncStatus('saving');
+
+      try {
+        const existingSnap = await getDoc(doc(db, 'tree_memberships', membershipId)).catch(
+          () => null
+        );
+        if (!existingSnap || !existingSnap.exists()) {
+          await setDoc(doc(db, 'tree_memberships', membershipId), {
+            treeId: invite.treeId,
+            treeName: invite.treeName.slice(0, 120),
+            ownerId: invite.ownerId,
+            ownerName: invite.ownerName.slice(0, 120),
+            userId: user.uid,
+            userEmail: myEmail.slice(0, 254),
+            userName: getUserDisplayName(user),
+            role: invite.role,
+            inviteId: invite.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (error) {
+        flashError('Could not accept invitation.');
+        handleFirestoreError(error, OperationType.CREATE, `tree_memberships/${membershipId}`);
+      }
+
+      try {
+        await deleteDoc(doc(db, 'tree_invites', invite.id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `tree_invites/${invite.id}`);
+      }
+
+      setActiveTreeId(invite.treeId);
+      flashSaved(`Joined "${invite.treeName}" (${invite.role === 'editor' ? 'Can edit' : 'View only'})`);
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const declineInvite = useCallback(
+    async (inviteId: string): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await deleteDoc(doc(db, 'tree_invites', inviteId));
+        flashSaved('Declined invitation');
+      } catch (error) {
+        flashError('Could not decline invitation.');
+        handleFirestoreError(error, OperationType.DELETE, `tree_invites/${inviteId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const updateCollaboratorRole = useCallback(
+    async (membershipId: string, role: ShareRole): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await updateDoc(doc(db, 'tree_memberships', membershipId), {
+          role,
+          updatedAt: serverTimestamp(),
+        });
+        flashSaved(`Updated member access to ${role === 'editor' ? 'Editor' : 'Viewer'}`);
+      } catch (error) {
+        flashError('Could not update member permission.');
+        handleFirestoreError(error, OperationType.UPDATE, `tree_memberships/${membershipId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const revokeCollaborator = useCallback(
+    async (membershipId: string): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await deleteDoc(doc(db, 'tree_memberships', membershipId));
+        flashSaved('Revoked family member access');
+      } catch (error) {
+        flashError('Could not revoke access.');
+        handleFirestoreError(error, OperationType.DELETE, `tree_memberships/${membershipId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const leaveSharedTree = useCallback(
+    async (membershipId: string): Promise<void> => {
+      if (!user) return;
+      setSyncStatus('saving');
+      try {
+        await deleteDoc(doc(db, 'tree_memberships', membershipId));
+        flashSaved('Left shared family tree');
+      } catch (error) {
+        flashError('Could not leave shared family tree.');
+        handleFirestoreError(error, OperationType.DELETE, `tree_memberships/${membershipId}`);
+      }
+    },
+    [user, flashSaved, flashError]
+  );
+
+  const getCollaboratorsForTree = useCallback(
+    (treeId: string) => ownedTreeCollaborators.filter((c) => c.treeId === treeId),
+    [ownedTreeCollaborators]
+  );
+
+  const getInvitesForTree = useCallback(
+    (treeId: string) => ownedTreeInvites.filter((i) => i.treeId === treeId),
+    [ownedTreeInvites]
+  );
+
   // --- CRUD: Members ---
   const addMember = useCallback(
     async (payload: MemberInputPayload): Promise<string> => {
+      if (activeTree && !canEditActiveTree) {
+        throw new Error('You have view-only access to this family tree.');
+      }
+
       let targetTreeId = effectiveActiveTreeId;
+      let treeOwnerId = activeTree?.ownerId || user?.uid || 'local_guest';
       if (!targetTreeId) {
         targetTreeId = await createTree('My Family Tree', 'Personal family lineage.');
+        treeOwnerId = user?.uid || 'local_guest';
       }
 
       const fullName = payload.fullName.trim().slice(0, 140);
@@ -703,7 +1244,7 @@ export function useFamilyStore() {
           const mRef = doc(db, 'family_trees', targetTreeId, 'members', newMemberId);
           batch.set(mRef, {
             treeId: targetTreeId,
-            ownerId: user.uid,
+            ownerId: treeOwnerId,
             fullName,
             gender: payload.gender,
             dateOfBirth: normalizedDob,
@@ -730,7 +1271,7 @@ export function useFamilyStore() {
             const rRef = doc(db, 'family_trees', targetTreeId, 'relationships', relId);
             batch.set(rRef, {
               treeId: targetTreeId,
-              ownerId: user.uid,
+              ownerId: treeOwnerId,
               personId: edge.personId,
               relatedPersonId: edge.relatedPersonId,
               relationshipType: edge.relationshipType,
@@ -807,7 +1348,16 @@ export function useFamilyStore() {
         return newMemberId;
       }
     },
-    [effectiveActiveTreeId, createTree, relationships, user, flashSaved, flashError]
+    [
+      activeTree,
+      canEditActiveTree,
+      effectiveActiveTreeId,
+      createTree,
+      relationships,
+      user,
+      flashSaved,
+      flashError,
+    ]
   );
 
   const updateMember = useCallback(
@@ -816,6 +1366,9 @@ export function useFamilyStore() {
       updates: Omit<MemberInputPayload, 'relationship'>
     ): Promise<void> => {
       if (!effectiveActiveTreeId) return;
+      if (!canEditActiveTree) {
+        throw new Error('You have view-only access to this family tree.');
+      }
       const fullName = updates.fullName.trim().slice(0, 140);
       if (!fullName) throw new Error('Full Name is required.');
 
@@ -878,12 +1431,15 @@ export function useFamilyStore() {
         flashSaved(`Saved changes to ${fullName}`);
       }
     },
-    [effectiveActiveTreeId, user, flashSaved, flashError]
+    [effectiveActiveTreeId, canEditActiveTree, user, flashSaved, flashError]
   );
 
   const deleteMember = useCallback(
     async (memberId: string): Promise<void> => {
       if (!effectiveActiveTreeId) return;
+      if (!canEditActiveTree) {
+        throw new Error('You have view-only access to this family tree.');
+      }
       const target = members.find((m) => m.id === memberId);
       const attachedRels = relationships.filter(
         (r) => r.personId === memberId || r.relatedPersonId === memberId
@@ -899,7 +1455,9 @@ export function useFamilyStore() {
             batch.delete(doc(db, 'family_trees', effectiveActiveTreeId, 'relationships', rel.id));
           }
           await batch.commit();
-          flashSaved(`Removed ${target?.fullName || 'member'} and ${attachedRels.length} connection(s)`);
+          flashSaved(
+            `Removed ${target?.fullName || 'member'} and ${attachedRels.length} connection(s)`
+          );
         } catch (error) {
           flashError('Failed to delete family member.');
           handleFirestoreError(
@@ -931,7 +1489,7 @@ export function useFamilyStore() {
         flashSaved(`Removed ${target?.fullName || 'member'}`);
       }
     },
-    [effectiveActiveTreeId, members, relationships, user, flashSaved, flashError]
+    [effectiveActiveTreeId, canEditActiveTree, members, relationships, user, flashSaved, flashError]
   );
 
   // --- CRUD: Direct Relationships ---
@@ -943,6 +1501,9 @@ export function useFamilyStore() {
       customLabel = ''
     ): Promise<void> => {
       if (!effectiveActiveTreeId) return;
+      if (!canEditActiveTree) {
+        throw new Error('You have view-only access to this family tree.');
+      }
       if (personId === relatedPersonId) {
         throw new Error('Cannot link a member to themselves.');
       }
@@ -957,6 +1518,7 @@ export function useFamilyStore() {
       }
 
       const relId = generateSafeId('rel');
+      const treeOwnerId = activeTree?.ownerId || user?.uid || 'local_guest';
       setSyncStatus('saving');
 
       if (user) {
@@ -964,7 +1526,7 @@ export function useFamilyStore() {
         try {
           await setDoc(doc(db, 'family_trees', effectiveActiveTreeId, 'relationships', relId), {
             treeId: effectiveActiveTreeId,
-            ownerId: user.uid,
+            ownerId: treeOwnerId,
             personId,
             relatedPersonId,
             relationshipType,
@@ -1003,12 +1565,23 @@ export function useFamilyStore() {
         flashSaved('Added relationship connection');
       }
     },
-    [effectiveActiveTreeId, relationships, user, flashSaved, flashError]
+    [
+      effectiveActiveTreeId,
+      canEditActiveTree,
+      activeTree,
+      relationships,
+      user,
+      flashSaved,
+      flashError,
+    ]
   );
 
   const deleteRelationship = useCallback(
     async (relationshipId: string): Promise<void> => {
       if (!effectiveActiveTreeId) return;
+      if (!canEditActiveTree) {
+        throw new Error('You have view-only access to this family tree.');
+      }
       setSyncStatus('saving');
       if (user) {
         const path = `family_trees/${effectiveActiveTreeId}/relationships/${relationshipId}`;
@@ -1037,19 +1610,37 @@ export function useFamilyStore() {
         flashSaved('Removed relationship link');
       }
     },
-    [effectiveActiveTreeId, user, flashSaved, flashError]
+    [effectiveActiveTreeId, canEditActiveTree, user, flashSaved, flashError]
+  );
+
+  const handleLogin = useCallback(
+    async (identifier: string, password: string) => {
+      setErrorMessage(null);
+      await loginWithUsernameOrEmail(identifier, password);
+      flashSaved('Signed in successfully');
+    },
+    [flashSaved]
+  );
+
+  const handleRegister = useCallback(
+    async (params: {
+      name: string;
+      username?: string;
+      email: string;
+      password: string;
+    }) => {
+      setErrorMessage(null);
+      await registerWithEmailPassword(params);
+      flashSaved(`Welcome, ${params.name.trim()}!`);
+    },
+    [flashSaved]
   );
 
   const handleSignIn = useCallback(async () => {
-    try {
-      setErrorMessage(null);
-      await signInWithGoogle();
-    } catch (err) {
-      flashError(
-        err instanceof Error ? err.message : 'Google Sign-In was cancelled or failed.'
-      );
-    }
-  }, [flashError]);
+    setErrorMessage(null);
+    await signInWithGoogle();
+    flashSaved('Signed in with Google');
+  }, [flashSaved]);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -1073,18 +1664,36 @@ export function useFamilyStore() {
     trees,
     activeTree,
     activeTreeId: effectiveActiveTreeId,
+    activeTreeRole,
+    isOwnerOfActiveTree,
+    canEditActiveTree,
     members,
     relationships,
+    incomingInvites,
+    ownedTreeCollaborators,
+    ownedTreeInvites,
+    getCollaboratorsForTree,
+    getInvitesForTree,
     selectTree,
     createTree,
     renameTree,
     deleteTree,
     importTemplateTree,
+    inviteFamilyMember,
+    updateInviteRole,
+    cancelInvite,
+    acceptInvite,
+    declineInvite,
+    updateCollaboratorRole,
+    revokeCollaborator,
+    leaveSharedTree,
     addMember,
     updateMember,
     deleteMember,
     linkExistingMembers,
     deleteRelationship,
+    login: handleLogin,
+    register: handleRegister,
     signIn: handleSignIn,
     signOut: handleSignOut,
   };

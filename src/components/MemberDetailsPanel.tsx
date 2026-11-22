@@ -28,6 +28,7 @@ interface MemberDetailsPanelProps {
   members: FamilyMember[];
   relationships: FamilyRelationship[];
   generation: number | undefined;
+  canEdit?: boolean;
   onClose: () => void;
   onSelectMember: (memberId: string) => void;
   onEdit: (member: FamilyMember) => void;
@@ -39,11 +40,13 @@ interface MemberDetailsPanelProps {
 function RelationGroup({
   title,
   items,
+  canEdit,
   onSelect,
   onUnlink,
 }: {
   title: string;
   items: RelatedMemberItem[];
+  canEdit: boolean;
   onSelect: (id: string) => void;
   onUnlink: (relId: string) => void;
 }) {
@@ -86,7 +89,7 @@ function RelationGroup({
                 </span>
               </button>
 
-              {item.relationshipId && !item.isDerived && (
+              {canEdit && item.relationshipId && !item.isDerived && (
                 <button
                   type="button"
                   title="Remove connection"
@@ -110,6 +113,7 @@ export function MemberDetailsPanel({
   members,
   relationships,
   generation,
+  canEdit = true,
   onClose,
   onSelectMember,
   onEdit,
@@ -216,24 +220,30 @@ export function MemberDetailsPanel({
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => onAddRelative(member)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
-          >
-            <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
-            Add Relative
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(member)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
-          >
-            <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-            Edit Profile
-          </button>
-        </div>
+        {canEdit ? (
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => onAddRelative(member)}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
+            >
+              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+              Add Relative
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit(member)}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 text-xs font-medium bg-white text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+            >
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+              Edit Profile
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5">
+            View-only access · Ask the family tree owner for Editor access to make changes.
+          </p>
+        )}
 
         {/* Personal Details */}
         <div className="border-t border-slate-100 pt-5 space-y-3">
@@ -305,56 +315,70 @@ export function MemberDetailsPanel({
 
           {totalConnections === 0 ? (
             <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200/80 rounded-xl p-4">
-              No relatives connected yet. Click <strong>Add Relative</strong> above to link parents,
-              spouses, children, siblings, or cousins.
+              {canEdit ? (
+                <>
+                  No relatives connected yet. Click <strong>Add Relative</strong> above to link
+                  parents, spouses, children, siblings, or cousins.
+                </>
+              ) : (
+                'No relatives connected to this member yet.'
+              )}
             </p>
           ) : (
             <div className="space-y-4">
               <RelationGroup
                 title="Parents"
                 items={derived.parents}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Spouses"
                 items={derived.spouses}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Children"
                 items={derived.children}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Siblings"
                 items={derived.siblings}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Cousins"
                 items={derived.cousins}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Grandparents"
                 items={derived.grandparents}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Grandchildren"
                 items={derived.grandchildren}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Other Connections"
                 items={derived.others}
+                canEdit={canEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
@@ -368,14 +392,16 @@ export function MemberDetailsPanel({
         <span className="text-[11px] text-slate-500 font-mono tabular-nums">
           Updated {new Date(member.updatedAt).toLocaleDateString()}
         </span>
-        <button
-          type="button"
-          onClick={() => onDelete(member)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-          Delete Member
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onDelete(member)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            Delete Member
+          </button>
+        )}
       </div>
     </aside>
   );

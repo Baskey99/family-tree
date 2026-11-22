@@ -14,6 +14,7 @@ import { GenderIndicator } from './GenderBadge';
 
 interface MemberCardProps {
   node: LayoutNode;
+  canEdit?: boolean;
   isSelected: boolean;
   isHighlighted: boolean;
   isDimmed: boolean;
@@ -27,6 +28,7 @@ interface MemberCardProps {
 
 export const MemberCard = React.memo(function MemberCard({
   node,
+  canEdit = true,
   isSelected,
   isHighlighted,
   isDimmed,
@@ -171,34 +173,38 @@ export const MemberCard = React.memo(function MemberCard({
         >
           <Eye className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          title="Edit Member"
-          aria-label={`Edit ${member.fullName}`}
-          onClick={() => onEdit(member.id)}
-          className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
-        >
-          <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          title="Add Relative"
-          aria-label={`Add relative to ${member.fullName}`}
-          onClick={() => onAddRelative(member.id)}
-          className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
-        >
-          <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
-        <div className="w-px h-4 bg-slate-700 mx-0.5" aria-hidden="true" />
-        <button
-          type="button"
-          title="Delete Member"
-          aria-label={`Delete ${member.fullName}`}
-          onClick={() => onDelete(member.id)}
-          className="p-1.5 rounded-md text-rose-300 hover:bg-rose-600 hover:text-white transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
+        {canEdit && (
+          <>
+            <button
+              type="button"
+              title="Edit Member"
+              aria-label={`Edit ${member.fullName}`}
+              onClick={() => onEdit(member.id)}
+              className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              title="Add Relative"
+              aria-label={`Add relative to ${member.fullName}`}
+              onClick={() => onAddRelative(member.id)}
+              className="p-1.5 rounded-md hover:bg-slate-700 transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+            <div className="w-px h-4 bg-slate-700 mx-0.5" aria-hidden="true" />
+            <button
+              type="button"
+              title="Delete Member"
+              aria-label={`Delete ${member.fullName}`}
+              onClick={() => onDelete(member.id)}
+              className="p-1.5 rounded-md text-rose-300 hover:bg-rose-600 hover:text-white transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Expand / Collapse Branch Control */}

@@ -21,11 +21,46 @@ export type FormRelationshipType =
   | 'grandmother'
   | 'other';
 
+export type TreeRole = 'owner' | 'editor' | 'viewer';
+
+export type ShareRole = 'viewer' | 'editor';
+
 export interface FamilyTreeRecord {
   id: string;
   ownerId: string;
+  ownerName?: string;
+  ownerEmail?: string;
   name: string;
   description: string;
+  createdAt: string;
+  updatedAt: string;
+  accessRole?: TreeRole;
+  membershipId?: string;
+}
+
+export interface TreeInvite {
+  id: string;
+  treeId: string;
+  treeName: string;
+  ownerId: string;
+  ownerName: string;
+  inviteeEmail: string;
+  role: ShareRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TreeMembership {
+  id: string;
+  treeId: string;
+  treeName: string;
+  ownerId: string;
+  ownerName: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  role: ShareRole;
+  inviteId: string;
   createdAt: string;
   updatedAt: string;
 }

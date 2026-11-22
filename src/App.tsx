@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   Cloud,
   Loader2,
   LogIn,
   LogOut,
+  Mail,
   Search,
+  Share2,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -23,6 +26,8 @@ import { DeleteMemberModal } from './components/DeleteMemberModal';
 import { DirectoryView } from './components/DirectoryView';
 import { LineagesView } from './components/LineagesView';
 import { GenderIndicator } from './components/GenderBadge';
+import { AuthModal, type AuthModalMode } from './components/AuthModal';
+import { ShareTreeModal } from './components/ShareTreeModal';
 import type { FamilyMember } from './types/family';
 
 type PageTab = 'tree' | 'directory' | 'lineages';
@@ -54,6 +59,12 @@ export default function App() {
   });
 
   const [deletingMember, setDeletingMember] = useState<FamilyMember | null>(null);
+  const [authModal, setAuthModal] = useState<{ open: boolean; mode: AuthModalMode }>({
+    open: false,
+    mode: 'login',
+  });
+  const [shareModalTreeId, setShareModalTreeId] = useState<string | null>(null);
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
   const [localToast, setLocalToast] = useState<{ text: string; isError?: boolean } | null>(null);
 
   const canvasRef = useRef<FamilyTreeCanvasHandle | null>(null);
@@ -65,6 +76,29 @@ export default function App() {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setLocalToast(null), 3500);
   }, []);
+
+  // Owned vs shared trees for grouped selector
+  const ownedTrees = useMemo(
+    () => store.trees.filter((t) => !t.accessRole || t.accessRole === 'owner'),
+    [store.trees]
+  );
+  const sharedTrees = useMemo(
+    () => store.trees.filter((t) => t.accessRole === 'editor' || t.accessRole === 'viewer'),
+    [store.trees]
+  );
+
+  const shareModalTree = useMemo(
+    () => (shareModalTreeId ? store.trees.find((t) => t.id === shareModalTreeId) || null : null),
+    [store.trees, shareModalTreeId]
+  );
+
+  const activeTreeCollabCount = useMemo(
+    () =>
+      store.activeTreeId && store.isOwnerOfActiveTree
+        ? store.getCollaboratorsForTree(store.activeTreeId).length
+        : 0,
+    [store]
+  );
 
   // Memoized hierarchical layout calculation
   const layout = useMemo(
@@ -97,7 +131,6 @@ export default function App() {
 
   const focusAndHighlightMember = useCallback((memberId: string, openInspector = false) => {
     setActiveTab('tree');
-    // Ensure all ancestors are visible by clearing collapse if member isn't currently laid out
     setCollapsedMemberIds((prev) => {
       if (prev.size === 0) return prev;
       return new Set();
@@ -125,17 +158,28 @@ export default function App() {
     });
   }, []);
 
-  const handleOpenAddModal = useCallback((relatedId: string | null = null) => {
-    setFormModal({
-      open: true,
-      mode: 'add',
-      editingMember: null,
-      defaultRelatedMemberId: relatedId,
-    });
-  }, []);
+  const handleOpenAddModal = useCallback(
+    (relatedId: string | null = null) => {
+      if (!store.canEditActiveTree) {
+        showToast('You have view-only access to this shared family tree.', true);
+        return;
+      }
+      setFormModal({
+        open: true,
+        mode: 'add',
+        editingMember: null,
+        defaultRelatedMemberId: relatedId,
+      });
+    },
+    [store.canEditActiveTree, showToast]
+  );
 
   const handleOpenEditModal = useCallback(
     (memberOrId: FamilyMember | string) => {
+      if (!store.canEditActiveTree) {
+        showToast('You have view-only access to this shared family tree.', true);
+        return;
+      }
       const member =
         typeof memberOrId === 'string'
           ? store.members.find((m) => m.id === memberOrId) || null
@@ -148,18 +192,22 @@ export default function App() {
         defaultRelatedMemberId: null,
       });
     },
-    [store.members]
+    [store.canEditActiveTree, store.members, showToast]
   );
 
   const handleRequestDelete = useCallback(
     (memberOrId: FamilyMember | string) => {
+      if (!store.canEditActiveTree) {
+        showToast('You have view-only access to this shared family tree.', true);
+        return;
+      }
       const member =
         typeof memberOrId === 'string'
           ? store.members.find((m) => m.id === memberOrId) || null
           : memberOrId;
       if (member) setDeletingMember(member);
     },
-    [store.members]
+    [store.canEditActiveTree, store.members, showToast]
   );
 
   const handleSwitchTree = useCallback(
@@ -204,7 +252,13 @@ export default function App() {
             [
               { id: 'tree', label: 'Family Tree' },
               { id: 'directory', label: 'Directory' },
-              { id: 'lineages', label: 'Lineages' },
+              {
+                id: 'lineages',
+                label:
+                  store.incomingInvites.length > 0
+                    ? `Lineages (${store.incomingInvites.length})`
+                    : 'Lineages',
+              },
             ] as const
           ).map((item) => {
             const active = activeTab === item.id;
@@ -243,48 +297,130 @@ export default function App() {
                   type="button"
                   onClick={() => void store.signOut()}
                   title="Sign out"
-                  aria-label="Sign out of Google account"
+                  aria-label="Sign out"
                   className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                 >
                   <LogOut className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => void store.signIn()}
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
-              >
-                <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Sign in to Cloud</span>
-                <span className="sm:hidden">Sign in</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAuthModal({ open: true, mode: 'login' })}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                >
+                  <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Login</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthModal({ open: true, mode: 'register' })}
+                  className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                >
+                  Register
+                </button>
+              </div>
             ))}
 
-          <button
-            type="button"
-            onClick={() => handleOpenAddModal(selectedMemberId)}
-            className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
-          >
-            <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">Add Family Member</span>
-            <span className="sm:hidden">Add</span>
-          </button>
+          {store.canEditActiveTree ? (
+            <button
+              type="button"
+              onClick={() => handleOpenAddModal(selectedMemberId)}
+              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+            >
+              <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Add Family Member</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          ) : (
+            <span className="text-xs font-medium text-slate-500 whitespace-nowrap shrink-0 px-2">
+              View only
+            </span>
+          )}
         </div>
       </header>
+
+      {/* Incoming Family Tree Invitations Banner */}
+      {store.incomingInvites.length > 0 && (
+        <div className="bg-blue-50/90 border-b border-blue-200/80 px-4 sm:px-6 py-2.5 shrink-0 z-20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-xs text-slate-800 min-w-0">
+              <Mail className="w-4 h-4 text-blue-700 shrink-0" aria-hidden="true" />
+              <p className="truncate">
+                <span className="font-semibold">{store.incomingInvites[0].ownerName}</span> invited
+                you to{' '}
+                <span className="font-semibold">"{store.incomingInvites[0].treeName}"</span> (
+                {store.incomingInvites[0].role === 'editor' ? 'Can view & edit' : 'View only'})
+                {store.incomingInvites.length > 1 && (
+                  <span className="text-slate-600">
+                    {' '}
+                    · +{store.incomingInvites.length - 1} more
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={busyInviteId === store.incomingInvites[0].id}
+                onClick={async () => {
+                  const inv = store.incomingInvites[0];
+                  setBusyInviteId(inv.id);
+                  try {
+                    await store.acceptInvite(inv);
+                    setActiveTab('tree');
+                  } catch (err) {
+                    showToast(
+                      err instanceof Error ? err.message : 'Could not accept invitation.',
+                      true
+                    );
+                  } finally {
+                    setBusyInviteId(null);
+                  }
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                Accept
+              </button>
+              <button
+                type="button"
+                disabled={busyInviteId === store.incomingInvites[0].id}
+                onClick={async () => {
+                  const inv = store.incomingInvites[0];
+                  setBusyInviteId(inv.id);
+                  try {
+                    await store.declineInvite(inv.id);
+                  } finally {
+                    setBusyInviteId(null);
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Page Router */}
       {activeTab === 'tree' && (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Family Tree Workspace Subheader */}
           <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 z-20">
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 min-w-0">
-              <div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
+              <div className="mr-1">
                 <h1 className="font-display text-lg font-semibold text-slate-900 leading-tight">
                   Family Tree
                 </h1>
                 <p className="text-xs text-slate-500">
-                  Build and explore your family relationships.
+                  {store.activeTree && !store.isOwnerOfActiveTree
+                    ? `Shared by ${store.activeTree.ownerName || 'family owner'} · ${
+                        store.activeTreeRole === 'editor' ? 'Can view & edit' : 'View only'
+                      }`
+                    : 'Build, share, and explore your family relationships.'}
                 </p>
               </div>
 
@@ -297,14 +433,48 @@ export default function App() {
                     id="active-tree-select"
                     value={store.activeTreeId}
                     onChange={(e) => handleSwitchTree(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:border-slate-900 max-w-[220px]"
+                    className="px-2.5 py-1.5 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:border-slate-900 max-w-[230px]"
                   >
-                    {store.trees.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
+                    {sharedTrees.length > 0 ? (
+                      <>
+                        {ownedTrees.length > 0 && (
+                          <optgroup label="My Family Trees">
+                            {ownedTrees.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Shared With Me">
+                          {sharedTrees.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.accessRole === 'editor' ? 'Edit' : 'View'})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    ) : (
+                      store.trees.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))
+                    )}
                   </select>
+
+                  {store.activeTree && store.isOwnerOfActiveTree && (
+                    <button
+                      type="button"
+                      onClick={() => setShareModalTreeId(store.activeTree!.id)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>
+                        {activeTreeCollabCount > 0 ? `Share (${activeTreeCollabCount})` : 'Share'}
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -435,6 +605,7 @@ export default function App() {
               <FamilyTreeCanvas
                 ref={canvasRef}
                 treeName={store.activeTree?.name || 'Family Tree'}
+                canEdit={store.canEditActiveTree}
                 layout={layout}
                 selectedMemberId={selectedMemberId}
                 highlightedMemberId={highlightedMemberId}
@@ -468,6 +639,7 @@ export default function App() {
                 members={store.members}
                 relationships={store.relationships}
                 generation={layout.memberGenerationMap.get(selectedMember.id)}
+                canEdit={store.canEditActiveTree}
                 onClose={() => setDetailsOpen(false)}
                 onSelectMember={(id) => focusAndHighlightMember(id, true)}
                 onEdit={(m) => handleOpenEditModal(m)}
@@ -485,6 +657,7 @@ export default function App() {
           members={store.members}
           relationships={store.relationships}
           memberGenerationMap={layout.memberGenerationMap}
+          canEdit={store.canEditActiveTree}
           onLocateOnTree={(id) => focusAndHighlightMember(id, false)}
           onViewDetails={(id) => focusAndHighlightMember(id, true)}
           onEdit={(m) => handleOpenEditModal(m)}
@@ -498,7 +671,11 @@ export default function App() {
           trees={store.trees}
           activeTreeId={store.activeTreeId}
           isCloudMode={store.isCloudMode}
+          incomingInvites={store.incomingInvites}
+          ownedTreeCollaborators={store.ownedTreeCollaborators}
+          ownedTreeInvites={store.ownedTreeInvites}
           onSelectTree={handleSwitchTree}
+          onShareTree={(treeId) => setShareModalTreeId(treeId)}
           onCreateTree={async (name, desc) => {
             const id = await store.createTree(name, desc);
             setActiveTab('tree');
@@ -506,6 +683,12 @@ export default function App() {
           }}
           onRenameTree={store.renameTree}
           onDeleteTree={store.deleteTree}
+          onLeaveSharedTree={store.leaveSharedTree}
+          onAcceptInvite={async (invite) => {
+            await store.acceptInvite(invite);
+            setActiveTab('tree');
+          }}
+          onDeclineInvite={store.declineInvite}
           onImportTemplate={async (templateId) => {
             const id = await store.importTemplateTree(templateId);
             if (id) setActiveTab('tree');
@@ -575,6 +758,38 @@ export default function App() {
             setDetailsOpen(false);
           }
         }}
+      />
+
+      {/* Share Family Tree Modal */}
+      <ShareTreeModal
+        open={Boolean(shareModalTree)}
+        tree={shareModalTree}
+        isCloudMode={store.isCloudMode}
+        currentUserEmail={store.user?.email || ''}
+        currentUserName={store.user?.displayName || store.user?.email || 'You'}
+        collaborators={
+          shareModalTree ? store.getCollaboratorsForTree(shareModalTree.id) : []
+        }
+        pendingInvites={
+          shareModalTree ? store.getInvitesForTree(shareModalTree.id) : []
+        }
+        onClose={() => setShareModalTreeId(null)}
+        onOpenAuth={() => setAuthModal({ open: true, mode: 'login' })}
+        onInviteMember={store.inviteFamilyMember}
+        onUpdateCollaboratorRole={store.updateCollaboratorRole}
+        onRevokeCollaborator={store.revokeCollaborator}
+        onUpdateInviteRole={store.updateInviteRole}
+        onCancelInvite={store.cancelInvite}
+      />
+
+      {/* Login & Register Modal */}
+      <AuthModal
+        open={authModal.open}
+        initialMode={authModal.mode}
+        onClose={() => setAuthModal((prev) => ({ ...prev, open: false }))}
+        onLogin={store.login}
+        onRegister={store.register}
+        onGoogleSignIn={store.signIn}
       />
     </div>
   );
