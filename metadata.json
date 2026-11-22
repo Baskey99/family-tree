@@ -1,0 +1,8 @@
+{
+  "name": "Kinship — Family Tree Studio",
+  "description": "Interactive family tree builder and lineage manager with generation-based automatic layout, relationship tracking, photo profiles, and cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,214 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny all paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isTreeOwner(treeId) {
+      return exists(/databases/$(database)/documents/family_trees/$(treeId))
+        && get(/databases/$(database)/documents/family_trees/$(treeId)).data.ownerId == request.auth.uid;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidFamilyTree(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'description', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'description', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.description is string && data.description.size() <= 400
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidManualAge(age) {
+      return age == null || ((age is int || age is float) && age >= 0 && age <= 130);
+    }
+
+    function isValidFamilyMember(data, treeId) {
+      return data.keys().hasAll([
+          'treeId', 'ownerId', 'fullName', 'gender',
+          'dateOfBirth', 'manualAge', 'address', 'photoUrl', 'notes',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'treeId', 'ownerId', 'fullName', 'gender',
+          'dateOfBirth', 'manualAge', 'address', 'photoUrl', 'notes',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.treeId)
+        && data.treeId == treeId
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 140
+        && data.gender is string && (data.gender == 'male' || data.gender == 'female')
+        && data.dateOfBirth is string && data.dateOfBirth.size() <= 32
+        && isValidManualAge(data.manualAge)
+        && data.address is string && data.address.size() <= 250
+        && data.photoUrl is string && data.photoUrl.size() <= 65000
+        && data.notes is string && data.notes.size() <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRelationshipType(relType) {
+      return relType is string && (
+        relType == 'parent_child' ||
+        relType == 'spouse' ||
+        relType == 'sibling' ||
+        relType == 'cousin' ||
+        relType == 'other'
+      );
+    }
+
+    function isValidFamilyRelationship(data, treeId) {
+      return data.keys().hasAll([
+          'treeId', 'ownerId', 'personId', 'relatedPersonId',
+          'relationshipType', 'customLabel', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'treeId', 'ownerId', 'personId', 'relatedPersonId',
+          'relationshipType', 'customLabel', 'createdAt'
+        ])
+        && isValidId(data.treeId)
+        && data.treeId == treeId
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.personId)
+        && isValidId(data.relatedPersonId)
+        && data.personId != data.relatedPersonId
+        && isValidRelationshipType(data.relationshipType)
+        && data.customLabel is string && data.customLabel.size() <= 80
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection: /family_trees/{treeId} ---
+    match /family_trees/{treeId} {
+      allow get: if isSignedIn() && isValidId(treeId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(treeId)
+        && isValidFamilyTree(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(treeId)
+        && isValidFamilyTree(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'updatedAt']);
+
+      allow delete: if isVerifiedUser()
+        && isValidId(treeId)
+        && existing().ownerId == request.auth.uid;
+
+      // --- Subcollection: /family_trees/{treeId}/members/{memberId} ---
+      match /members/{memberId} {
+        allow get: if isSignedIn()
+          && isValidId(treeId)
+          && isValidId(memberId)
+          && existing().ownerId == request.auth.uid
+          && isTreeOwner(treeId);
+
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(memberId)
+          && isValidFamilyMember(incoming(), treeId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && isTreeOwner(treeId);
+
+        allow update: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(memberId)
+          && isValidFamilyMember(incoming(), treeId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().treeId == existing().treeId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'fullName', 'gender', 'dateOfBirth', 'manualAge',
+            'address', 'photoUrl', 'notes', 'updatedAt'
+          ])
+          && isTreeOwner(treeId);
+
+        allow delete: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(memberId)
+          && existing().ownerId == request.auth.uid
+          && isTreeOwner(treeId);
+      }
+
+      // --- Subcollection: /family_trees/{treeId}/relationships/{relationshipId} ---
+      match /relationships/{relationshipId} {
+        allow get: if isSignedIn()
+          && isValidId(treeId)
+          && isValidId(relationshipId)
+          && existing().ownerId == request.auth.uid
+          && isTreeOwner(treeId);
+
+        allow list: if isSignedIn()
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(relationshipId)
+          && isValidFamilyRelationship(incoming(), treeId)
+          && incoming().createdAt == request.time
+          && isTreeOwner(treeId);
+
+        allow update: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(relationshipId)
+          && isValidFamilyRelationship(incoming(), treeId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().treeId == existing().treeId
+          && incoming().personId == existing().personId
+          && incoming().relatedPersonId == existing().relatedPersonId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['relationshipType', 'customLabel'])
+          && isTreeOwner(treeId);
+
+        allow delete: if isVerifiedUser()
+          && isValidId(treeId)
+          && isValidId(relationshipId)
+          && existing().ownerId == request.auth.uid
+          && isTreeOwner(treeId);
+      }
+    }
+  }
+}

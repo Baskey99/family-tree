@@ -1,0 +1,198 @@
+{
+  "entities": {
+    "FamilyTree": {
+      "title": "FamilyTree",
+      "description": "A top-level family tree workspace owned by a single authenticated user.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Authenticated user UID who owns this family tree."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Display name of the family tree."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 400,
+          "description": "Optional summary description of the family lineage."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the tree was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the tree was last updated."
+        }
+      },
+      "required": ["ownerId", "name", "description", "createdAt", "updatedAt"]
+    },
+    "FamilyMember": {
+      "title": "FamilyMember",
+      "description": "A profile record for a single individual within a family tree.",
+      "type": "object",
+      "properties": {
+        "treeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the parent family tree."
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the tree owner for O(1) secure list queries."
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140,
+          "description": "Full name of the family member."
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["male", "female"],
+          "description": "Gender of the family member."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 32,
+          "description": "Optional ISO date of birth (YYYY-MM-DD) or empty string."
+        },
+        "manualAge": {
+          "type": "number",
+          "description": "Optional manual age (0-130) when DOB is not provided, or null."
+        },
+        "address": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 250,
+          "description": "Optional home address or ancestral village."
+        },
+        "photoUrl": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 65000,
+          "description": "Optional compressed profile avatar data URL or HTTPS image URL."
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1000,
+          "description": "Optional biographical notes or nicknames."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the member record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the member record was last modified."
+        }
+      },
+      "required": [
+        "treeId",
+        "ownerId",
+        "fullName",
+        "gender",
+        "dateOfBirth",
+        "manualAge",
+        "address",
+        "photoUrl",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FamilyRelationship": {
+      "title": "FamilyRelationship",
+      "description": "A relationship edge connecting two members within a family tree.",
+      "type": "object",
+      "properties": {
+        "treeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Identifier of the parent family tree."
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the tree owner for O(1) secure list queries."
+        },
+        "personId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Source member ID (e.g., parent for parent_child)."
+        },
+        "relatedPersonId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Target member ID (e.g., child for parent_child)."
+        },
+        "relationshipType": {
+          "type": "string",
+          "enum": ["parent_child", "spouse", "sibling", "cousin", "other"],
+          "description": "Semantic relationship category."
+        },
+        "customLabel": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 80,
+          "description": "Optional custom label when relationshipType is 'other'."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the relationship was created."
+        }
+      },
+      "required": [
+        "treeId",
+        "ownerId",
+        "personId",
+        "relatedPersonId",
+        "relationshipType",
+        "customLabel",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/family_trees/{treeId}": {
+      "schema": { "$ref": "#/entities/FamilyTree" },
+      "description": "Owner-scoped family tree workspaces."
+    },
+    "/family_trees/{treeId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/FamilyMember" },
+      "description": "Family member profiles belonging to a specific family tree."
+    },
+    "/family_trees/{treeId}/relationships/{relationshipId}": {
+      "schema": { "$ref": "#/entities/FamilyRelationship" },
+      "description": "Relationship links between family members inside a family tree."
+    }
+  }
+}
