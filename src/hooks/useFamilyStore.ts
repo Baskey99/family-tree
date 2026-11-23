@@ -191,6 +191,7 @@ export function useFamilyStore() {
   const [localData, setLocalData] = useState<LocalWorkspaceData>(() => loadLocalWorkspace());
   const [ownedCloudTrees, setOwnedCloudTrees] = useState<FamilyTreeRecord[]>([]);
   const [sharedCloudTrees, setSharedCloudTrees] = useState<FamilyTreeRecord[]>([]);
+  const [myMembershipIds, setMyMembershipIds] = useState<Set<string>>(() => new Set());
   const [cloudMembers, setCloudMembers] = useState<FamilyMember[]>([]);
   const [cloudRelationships, setCloudRelationships] = useState<FamilyRelationship[]>([]);
 
@@ -400,6 +401,7 @@ export function useFamilyStore() {
   useEffect(() => {
     if (!authReady || !user) {
       setSharedCloudTrees([]);
+      setMyMembershipIds(new Set());
       return;
     }
 
@@ -429,6 +431,10 @@ export function useFamilyStore() {
             updatedAt: formatFirestoreTimestamp(data.updatedAt),
           };
         });
+
+        if (!cancelled) {
+          setMyMembershipIds(new Set(memberships.map((m) => m.id)));
+        }
 
         const resolved = await Promise.all(
           memberships.map(async (m): Promise<FamilyTreeRecord | null> => {
@@ -2178,22 +2184,28 @@ export function useFamilyStore() {
         throw new Error('Cannot approve your own connection request.');
       }
 
-      const myName = sanitizeSingleLine(getUserDisplayName(user), 120);
-      const cleanTargetMemberName = sanitizeSingleLine(params.targetMemberName, 140);
+      const myName = sanitizeSingleLine(getUserDisplayName(user), 120) || 'Family Member';
+      const cleanSourceTreeName =
+        sanitizeSingleLine(params.request.sourceTreeName, 120) || 'Family Tree';
+      const cleanTargetTreeName = sanitizeSingleLine(targetTree.name, 120) || 'Family Tree';
+      const cleanSourceMemberName =
+        sanitizeSingleLine(params.request.sourceMemberName, 140) || 'Family Member';
+      const cleanTargetMemberName =
+        sanitizeSingleLine(params.targetMemberName, 140) || 'Family Member';
+      const cleanSourceOwnerEmail = params.request.sourceOwnerEmail.trim().toLowerCase();
       const connectionId = generateSafeId('tconn');
 
       // Deterministic membership doc IDs for both directions
       const sourceMemId = `${params.request.sourceTreeId}__${user.uid}`;
       const targetMemId = `${targetTree.id}__${params.request.sourceOwnerId}`;
 
+      // Check existing memberships from live real-time listeners (avoids getDoc on non-existent docs,
+      // which Firestore security rules deny when resource == null).
+      const sourceMemExists = myMembershipIds.has(sourceMemId);
+      const targetMemExists = ownedTreeCollaborators.some((c) => c.id === targetMemId);
+
       setSyncStatus('saving');
       try {
-        // Check if either directional membership already exists so we set vs update cleanly
-        const [existingSourceMem, existingTargetMem] = await Promise.all([
-          getDoc(doc(db, 'tree_memberships', sourceMemId)),
-          getDoc(doc(db, 'tree_memberships', targetMemId)),
-        ]);
-
         const batch = writeBatch(db);
 
         // 1. Mark request accepted
@@ -2203,17 +2215,17 @@ export function useFamilyStore() {
         });
 
         // 2. Grant Recipient (current user) consented access to Source Owner's tree
-        if (existingSourceMem.exists()) {
+        if (sourceMemExists) {
           batch.update(doc(db, 'tree_memberships', sourceMemId), {
             role: params.request.sourceGrantsRole,
-            treeName: sanitizeSingleLine(params.request.sourceTreeName, 120),
+            treeName: cleanSourceTreeName,
             inviteId: params.request.id,
             updatedAt: serverTimestamp(),
           });
         } else {
           batch.set(doc(db, 'tree_memberships', sourceMemId), {
             treeId: params.request.sourceTreeId,
-            treeName: sanitizeSingleLine(params.request.sourceTreeName, 120),
+            treeName: cleanSourceTreeName,
             ownerId: params.request.sourceOwnerId,
             ownerName: sanitizeSingleLine(params.request.sourceOwnerName, 120),
             userId: user.uid,
@@ -2227,21 +2239,21 @@ export function useFamilyStore() {
         }
 
         // 3. Grant Source Owner consented access to Recipient's (current user's) tree
-        if (existingTargetMem.exists()) {
+        if (targetMemExists) {
           batch.update(doc(db, 'tree_memberships', targetMemId), {
             role: params.targetGrantsRole,
-            treeName: sanitizeSingleLine(targetTree.name, 120),
+            treeName: cleanTargetTreeName,
             inviteId: params.request.id,
             updatedAt: serverTimestamp(),
           });
         } else {
           batch.set(doc(db, 'tree_memberships', targetMemId), {
             treeId: targetTree.id,
-            treeName: sanitizeSingleLine(targetTree.name, 120),
+            treeName: cleanTargetTreeName,
             ownerId: user.uid,
             ownerName: myName,
             userId: params.request.sourceOwnerId,
-            userEmail: params.request.sourceOwnerEmail.toLowerCase(),
+            userEmail: cleanSourceOwnerEmail,
             userName: sanitizeSingleLine(params.request.sourceOwnerName, 120),
             role: params.targetGrantsRole,
             inviteId: params.request.id,
@@ -2254,15 +2266,15 @@ export function useFamilyStore() {
         batch.set(doc(db, 'tree_connections', connectionId), {
           requestId: params.request.id,
           sourceTreeId: params.request.sourceTreeId,
-          sourceTreeName: sanitizeSingleLine(params.request.sourceTreeName, 120),
+          sourceTreeName: cleanSourceTreeName,
           sourceOwnerId: params.request.sourceOwnerId,
           sourceOwnerName: sanitizeSingleLine(params.request.sourceOwnerName, 120),
-          sourceOwnerEmail: params.request.sourceOwnerEmail.toLowerCase(),
+          sourceOwnerEmail: cleanSourceOwnerEmail,
           sourceMemberId: params.request.sourceMemberId,
-          sourceMemberName: sanitizeSingleLine(params.request.sourceMemberName, 140),
+          sourceMemberName: cleanSourceMemberName,
           sourceGrantsRole: params.request.sourceGrantsRole,
           targetTreeId: targetTree.id,
-          targetTreeName: sanitizeSingleLine(targetTree.name, 120),
+          targetTreeName: cleanTargetTreeName,
           targetOwnerId: user.uid,
           targetOwnerName: myName,
           targetOwnerEmail: myEmail,
@@ -2272,7 +2284,7 @@ export function useFamilyStore() {
           participantIds: [params.request.sourceOwnerId, user.uid],
           relationshipType: params.request.relationshipType,
           relationshipDirection: params.request.relationshipDirection,
-          customLabel: sanitizeSingleLine(params.request.customLabel, 80),
+          customLabel: sanitizeSingleLine(params.request.customLabel || '', 80),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -2288,7 +2300,7 @@ export function useFamilyStore() {
         handleFirestoreError(error, OperationType.WRITE, `tree_connections/${connectionId}`);
       }
     },
-    [user, ownedCloudTrees, flashSaved, flashError]
+    [user, ownedCloudTrees, myMembershipIds, ownedTreeCollaborators, flashSaved, flashError]
   );
 
   const declineTreeLinkRequest = useCallback(
@@ -2337,6 +2349,8 @@ export function useFamilyStore() {
       const otherUid = isSourceOwner ? connection.targetOwnerId : connection.sourceOwnerId;
       const membershipId = `${myTreeId}__${otherUid}`;
 
+      const memExists = ownedTreeCollaborators.some((c) => c.id === membershipId);
+
       setSyncStatus('saving');
       try {
         const batch = writeBatch(db);
@@ -2347,8 +2361,7 @@ export function useFamilyStore() {
           updatedAt: serverTimestamp(),
         });
 
-        const memSnap = await getDoc(doc(db, 'tree_memberships', membershipId));
-        if (memSnap.exists()) {
+        if (memExists) {
           batch.update(doc(db, 'tree_memberships', membershipId), {
             role: newRoleForMyTree,
             updatedAt: serverTimestamp(),
@@ -2364,7 +2377,7 @@ export function useFamilyStore() {
         handleFirestoreError(error, OperationType.UPDATE, `tree_connections/${connection.id}`);
       }
     },
-    [user, flashSaved, flashError]
+    [user, ownedTreeCollaborators, flashSaved, flashError]
   );
 
   const disconnectTrees = useCallback(
@@ -2389,21 +2402,24 @@ export function useFamilyStore() {
               c.targetOwnerId === connection.sourceOwnerId)
         );
 
+        const knownMemIds = new Set<string>([
+          ...myMembershipIds,
+          ...ownedTreeCollaborators.map((c) => c.id),
+        ]);
+
         const batch = writeBatch(db);
         batch.delete(doc(db, 'tree_connections', connection.id));
 
         if (!stillNeedsSourceMem) {
           const sourceMemId = `${connection.sourceTreeId}__${connection.targetOwnerId}`;
-          const snap = await getDoc(doc(db, 'tree_memberships', sourceMemId));
-          if (snap.exists()) {
+          if (knownMemIds.has(sourceMemId)) {
             batch.delete(doc(db, 'tree_memberships', sourceMemId));
           }
         }
 
         if (!stillNeedsTargetMem) {
           const targetMemId = `${connection.targetTreeId}__${connection.sourceOwnerId}`;
-          const snap = await getDoc(doc(db, 'tree_memberships', targetMemId));
-          if (snap.exists()) {
+          if (knownMemIds.has(targetMemId)) {
             batch.delete(doc(db, 'tree_memberships', targetMemId));
           }
         }
@@ -2415,7 +2431,7 @@ export function useFamilyStore() {
         handleFirestoreError(error, OperationType.DELETE, `tree_connections/${connection.id}`);
       }
     },
-    [user, treeConnections, flashSaved, flashError]
+    [user, treeConnections, myMembershipIds, ownedTreeCollaborators, flashSaved, flashError]
   );
 
   const handleLogin = useCallback(
