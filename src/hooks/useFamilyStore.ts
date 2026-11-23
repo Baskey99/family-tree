@@ -34,6 +34,13 @@ import {
   planRelationshipsForNewMember,
   wouldCreateParentCycle,
 } from '../lib/familyUtils';
+import {
+  checkRateLimit,
+  recordRateLimitAttempt,
+  sanitizeImageUrl,
+  sanitizeSingleLine,
+  sanitizeText,
+} from '../lib/security';
 import type {
   FamilyMember,
   FamilyRelationship,
@@ -962,15 +969,21 @@ export function useFamilyStore() {
       if (!user) {
         throw new Error('Please sign in first to share a family tree.');
       }
+      const rateCheck = checkRateLimit('invite');
+      if (!rateCheck.allowed) {
+        throw new Error(rateCheck.message || 'Too many invitations sent. Please wait before trying again.');
+      }
       const targetTree = ownedCloudTrees.find((t) => t.id === treeId);
       if (!targetTree) {
         throw new Error('Only the owner of this family tree can send invitations.');
       }
 
-      const trimmed = identifier.trim();
+      const trimmed = sanitizeSingleLine(identifier, 254);
       if (!trimmed) {
         throw new Error('Enter your family member’s email address or username.');
       }
+
+      recordRateLimitAttempt('invite');
 
       let inviteeEmail = '';
       if (trimmed.includes('@')) {
@@ -1239,6 +1252,11 @@ export function useFamilyStore() {
             ? Math.max(0, Math.min(130, Math.floor(payload.manualAge)))
             : null;
 
+      const safeFullName = sanitizeSingleLine(fullName, 140);
+      const safeAddress = sanitizeSingleLine(payload.address, 250);
+      const safePhotoUrl = sanitizeImageUrl(payload.photoUrl);
+      const safeNotes = sanitizeText(payload.notes, 1000);
+
       setSyncStatus('saving');
 
       if (user) {
@@ -1248,13 +1266,13 @@ export function useFamilyStore() {
           batch.set(mRef, {
             treeId: targetTreeId,
             ownerId: treeOwnerId,
-            fullName,
+            fullName: safeFullName,
             gender: payload.gender,
             dateOfBirth: normalizedDob,
             manualAge: normalizedManualAge,
-            address: payload.address.trim().slice(0, 250),
-            photoUrl: payload.photoUrl.slice(0, 65000),
-            notes: payload.notes.trim().slice(0, 1000),
+            address: safeAddress,
+            photoUrl: safePhotoUrl,
+            notes: safeNotes,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -1300,13 +1318,13 @@ export function useFamilyStore() {
           id: newMemberId,
           treeId: targetTreeId,
           ownerId: 'local_guest',
-          fullName,
+          fullName: safeFullName,
           gender: payload.gender,
           dateOfBirth: normalizedDob,
           manualAge: normalizedManualAge,
-          address: payload.address.trim().slice(0, 250),
-          photoUrl: payload.photoUrl.slice(0, 65000),
-          notes: payload.notes.trim().slice(0, 1000),
+          address: safeAddress,
+          photoUrl: safePhotoUrl,
+          notes: safeNotes,
           createdAt: now,
           updatedAt: now,
         };
@@ -1372,10 +1390,13 @@ export function useFamilyStore() {
       if (!canEditActiveTree) {
         throw new Error('You have view-only access to this family tree.');
       }
-      const fullName = updates.fullName.trim().slice(0, 140);
+      const fullName = sanitizeSingleLine(updates.fullName, 140);
       if (!fullName) throw new Error('Full Name is required.');
 
-      const normalizedDob = updates.dateOfBirth.trim().slice(0, 32);
+      const safeAddress = sanitizeSingleLine(updates.address, 250);
+      const safePhotoUrl = sanitizeImageUrl(updates.photoUrl);
+      const safeNotes = sanitizeText(updates.notes, 1000);
+      const normalizedDob = sanitizeSingleLine(updates.dateOfBirth, 32);
       const normalizedManualAge =
         normalizedDob !== ''
           ? null
@@ -1393,9 +1414,9 @@ export function useFamilyStore() {
             gender: updates.gender,
             dateOfBirth: normalizedDob,
             manualAge: normalizedManualAge,
-            address: updates.address.trim().slice(0, 250),
-            photoUrl: updates.photoUrl.slice(0, 65000),
-            notes: updates.notes.trim().slice(0, 1000),
+            address: safeAddress,
+            photoUrl: safePhotoUrl,
+            notes: safeNotes,
             updatedAt: serverTimestamp(),
           });
           flashSaved(`Saved changes to ${fullName}`);
@@ -1419,9 +1440,9 @@ export function useFamilyStore() {
                       gender: updates.gender,
                       dateOfBirth: normalizedDob,
                       manualAge: normalizedManualAge,
-                      address: updates.address.trim().slice(0, 250),
-                      photoUrl: updates.photoUrl.slice(0, 65000),
-                      notes: updates.notes.trim().slice(0, 1000),
+                      address: safeAddress,
+                      photoUrl: safePhotoUrl,
+                      notes: safeNotes,
                       updatedAt: now,
                     }
                   : m

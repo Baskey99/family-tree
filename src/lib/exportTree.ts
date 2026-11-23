@@ -1,15 +1,18 @@
 import { jsPDF } from 'jspdf';
 import type { TreeLayoutResult } from '../types/family';
 import { getEffectiveAge, getInitials } from './familyUtils';
+import { sanitizeImageUrl } from './security';
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
-  if (!src) return Promise.resolve(null);
+  const safeSrc = sanitizeImageUrl(src);
+  if (!safeSrc) return Promise.resolve(null);
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = src;
+    img.src = safeSrc;
   });
 }
 

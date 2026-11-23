@@ -22,6 +22,7 @@ import { useFamilyStore } from './hooks/useFamilyStore';
 import { useTheme } from './hooks/useTheme';
 import { computeFamilyTreeLayout } from './lib/treeLayout';
 import { getEffectiveAge } from './lib/familyUtils';
+import { sanitizeImageUrl } from './lib/security';
 import {
   FamilyTreeCanvas,
   type FamilyTreeCanvasHandle,
@@ -311,9 +312,9 @@ export default function App() {
           {store.authReady &&
             (store.user ? (
               <div className="flex items-center gap-2 pr-0.5">
-                {store.user.photoURL && (
+                {sanitizeImageUrl(store.user.photoURL) && (
                   <img
-                    src={store.user.photoURL}
+                    src={sanitizeImageUrl(store.user.photoURL)}
                     alt={store.user.displayName || 'Account avatar'}
                     referrerPolicy="no-referrer"
                     className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"

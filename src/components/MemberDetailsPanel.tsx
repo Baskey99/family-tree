@@ -21,6 +21,7 @@ import {
   getEffectiveAge,
   getInitials,
 } from '../lib/familyUtils';
+import { sanitizeImageUrl } from '../lib/security';
 import { GenderIndicator } from './GenderBadge';
 
 interface MemberDetailsPanelProps {
@@ -189,9 +190,9 @@ export function MemberDetailsPanel({
                 : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800/70'
             }`}
           >
-            {member.photoUrl && !imgError ? (
+            {sanitizeImageUrl(member.photoUrl) && !imgError ? (
               <img
-                src={member.photoUrl}
+                src={sanitizeImageUrl(member.photoUrl)}
                 alt={member.fullName}
                 referrerPolicy="no-referrer"
                 onError={() => setImgError(true)}

@@ -20,6 +20,7 @@ import {
   getInitials,
   inferDefaultGenderForRelation,
 } from '../lib/familyUtils';
+import { sanitizeImageUrl } from '../lib/security';
 import type { MemberInputPayload } from '../hooks/useFamilyStore';
 import { GenderIndicator } from './GenderBadge';
 
@@ -550,9 +551,9 @@ export function MemberFormModal({
                       : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800/70'
                   }`}
                 >
-                  {photoUrl ? (
+                  {sanitizeImageUrl(photoUrl) ? (
                     <img
-                      src={photoUrl}
+                      src={sanitizeImageUrl(photoUrl)}
                       alt="Profile preview"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
@@ -567,7 +568,7 @@ export function MemberFormModal({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={handlePhotoUpload}
                       className="hidden"
                       id="member-photo-upload"

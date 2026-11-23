@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -19,6 +20,13 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import {
+  checkRateLimit,
+  evaluatePasswordStrength,
+  recordRateLimitAttempt,
+  resetRateLimit,
+  sanitizeSingleLine,
+} from './security';
 
 // User's configured Firebase project (family-tree-8b9de)
 const firebaseConfig = {
@@ -31,6 +39,25 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Firebase App Check (reCAPTCHA v3) — automatically activates when VITE_RECAPTCHA_SITE_KEY is set
+const recaptchaSiteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
+if (typeof window !== 'undefined' && recaptchaSiteKey) {
+  try {
+    const debugToken = (import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || '').trim();
+    if (debugToken) {
+      (window as unknown as Record<string, unknown>).FIREBASE_APPCHECK_DEBUG_TOKEN =
+        debugToken === 'true' ? true : debugToken;
+    }
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (err) {
+    console.warn('Firebase App Check initialization skipped:', err);
+  }
+}
+
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
@@ -130,13 +157,16 @@ export function formatFirebaseAuthError(error: unknown, email?: string): string 
     case 'auth/invalid-email':
       return 'Please enter a valid email address.';
     case 'auth/weak-password':
-      return 'Password must be at least 6 characters long.';
+      return 'Password is too weak. Use at least 8 characters with letters and numbers.';
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
       return 'Invalid username/email or password. Please check your credentials and try again.';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please wait a moment and try again.';
+    case 'auth/app-check-token-is-invalid':
+    case 'auth/firebase-app-check-token-is-invalid':
+      return 'Security verification failed. Please refresh the page and try again.';
     case 'auth/operation-not-allowed':
       return 'This sign-in method is not enabled yet in Firebase Console (Authentication → Sign-in method → enable Google and Email/Password).';
     case 'auth/popup-closed-by-user':
@@ -166,17 +196,29 @@ export async function registerWithEmailPassword(params: {
   email: string;
   password: string;
 }): Promise<User> {
-  const cleanName = params.name.trim().slice(0, 100);
-  const cleanEmail = params.email.trim().toLowerCase();
+  const rateCheck = checkRateLimit('register');
+  if (!rateCheck.allowed) {
+    throw new AuthFlowError('auth/too-many-requests', rateCheck.message || 'Please wait before trying again.');
+  }
+
+  const cleanName = sanitizeSingleLine(params.name, 100);
+  const cleanEmail = sanitizeSingleLine(params.email, 254).toLowerCase();
   const hasExplicitUsername = Boolean(params.username?.trim());
   let chosenUsername = normalizeUsernameKey(
     params.username?.trim() || cleanName || cleanEmail.split('@')[0]
   );
 
   if (!cleanName) throw new Error('Full Name is required.');
-  if (!cleanEmail) throw new Error('Email is required.');
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    throw new AuthFlowError('auth/invalid-email', 'Please enter a valid email address.');
+  }
   if (chosenUsername.length < 2) {
     throw new Error('Username must contain at least 2 letters or numbers.');
+  }
+
+  const strength = evaluatePasswordStrength(params.password);
+  if (!strength.isAcceptable) {
+    throw new AuthFlowError('auth/weak-password', strength.reason || 'Please choose a stronger password.');
   }
 
   let autoUsernameTaken = false;
@@ -190,6 +232,7 @@ export async function registerWithEmailPassword(params: {
         .trim()
         .toLowerCase();
       if (existingEmail && existingEmail === cleanEmail) {
+        recordRateLimitAttempt('register');
         throw new AuthFlowError(
           'auth/email-already-in-use',
           formatFirebaseAuthError({ code: 'auth/email-already-in-use' }, cleanEmail)
@@ -215,7 +258,9 @@ export async function registerWithEmailPassword(params: {
     const cred = await createUserWithEmailAndPassword(auth, cleanEmail, params.password);
     user = cred.user;
     await updateProfile(user, { displayName: cleanName });
+    recordRateLimitAttempt('register');
   } catch (error) {
+    recordRateLimitAttempt('register');
     const code = getAuthErrorCode(error) || 'auth/registration-failed';
     throw new AuthFlowError(code, formatFirebaseAuthError(error, cleanEmail));
   }
@@ -257,7 +302,12 @@ export async function loginWithUsernameOrEmail(
   identifier: string,
   password: string
 ): Promise<User> {
-  const trimmed = identifier.trim();
+  const rateCheck = checkRateLimit('login');
+  if (!rateCheck.allowed) {
+    throw new AuthFlowError('auth/too-many-requests', rateCheck.message || 'Too many failed login attempts.');
+  }
+
+  const trimmed = sanitizeSingleLine(identifier, 254);
   if (!trimmed) throw new Error('Username or Email is required.');
   if (!password) throw new Error('Password is required.');
 
@@ -275,7 +325,11 @@ export async function loginWithUsernameOrEmail(
       handleFirestoreError(error, OperationType.GET, `usernames/${usernameKey}`);
     }
     if (!snap.exists()) {
-      throw new Error('No account found with that username. Try your email address or register.');
+      recordRateLimitAttempt('login');
+      throw new AuthFlowError(
+        'auth/invalid-credential',
+        'Invalid username/email or password. Please check your credentials and try again.'
+      );
     }
     const data = snap.data();
     if (!data?.email || typeof data.email !== 'string') {
@@ -286,15 +340,22 @@ export async function loginWithUsernameOrEmail(
 
   try {
     const cred = await signInWithEmailAndPassword(auth, emailToSignIn, password);
+    resetRateLimit('login');
     return cred.user;
   } catch (error) {
+    recordRateLimitAttempt('login');
     const code = getAuthErrorCode(error) || 'auth/login-failed';
     throw new AuthFlowError(code, formatFirebaseAuthError(error));
   }
 }
 
 export async function sendPasswordResetForIdentifier(identifier: string): Promise<string> {
-  const trimmed = identifier.trim();
+  const rateCheck = checkRateLimit('reset_password');
+  if (!rateCheck.allowed) {
+    throw new AuthFlowError('auth/too-many-requests', rateCheck.message || 'Please wait before requesting another reset email.');
+  }
+
+  const trimmed = sanitizeSingleLine(identifier, 254);
   if (!trimmed) {
     throw new Error('Please enter your username or email address.');
   }
@@ -313,6 +374,7 @@ export async function sendPasswordResetForIdentifier(identifier: string): Promis
       handleFirestoreError(error, OperationType.GET, `usernames/${usernameKey}`);
     }
     if (!snap.exists()) {
+      recordRateLimitAttempt('reset_password');
       throw new Error('No account found with that username. Try entering your email address.');
     }
     const data = snap.data();
@@ -326,9 +388,12 @@ export async function sendPasswordResetForIdentifier(identifier: string): Promis
 
   try {
     await sendPasswordResetEmail(auth, emailToReset);
+    recordRateLimitAttempt('reset_password');
     return emailToReset;
   } catch (error) {
-    throw new Error(formatFirebaseAuthError(error));
+    recordRateLimitAttempt('reset_password');
+    const code = getAuthErrorCode(error) || 'auth/reset-failed';
+    throw new AuthFlowError(code, formatFirebaseAuthError(error));
   }
 }
 
@@ -403,12 +468,19 @@ async function ensureGoogleUserProfile(user: User): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<User> {
+  const rateCheck = checkRateLimit('google_auth');
+  if (!rateCheck.allowed) {
+    throw new AuthFlowError('auth/too-many-requests', rateCheck.message || 'Please wait before trying Google Sign-In again.');
+  }
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    resetRateLimit('google_auth');
     void ensureGoogleUserProfile(result.user);
     return result.user;
   } catch (error) {
-    throw new Error(formatFirebaseAuthError(error));
+    recordRateLimitAttempt('google_auth');
+    const code = getAuthErrorCode(error) || 'auth/google-failed';
+    throw new AuthFlowError(code, formatFirebaseAuthError(error));
   }
 }
 

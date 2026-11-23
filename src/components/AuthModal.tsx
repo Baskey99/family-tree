@@ -15,7 +15,17 @@ import {
   X,
 } from 'lucide-react';
 import { getAuthErrorCode, normalizeUsernameKey } from '../lib/firebase';
+import {
+  checkRateLimit,
+  createHumanChallenge,
+  evaluatePasswordStrength,
+  formatCooldown,
+  verifyBotGuards,
+  type HumanChallengeData,
+  type RateLimitAction,
+} from '../lib/security';
 import { GoogleIcon } from './GoogleIcon';
+import { HumanChallenge } from './HumanChallenge';
 
 export type AuthModalMode = 'login' | 'register' | 'reset';
 
@@ -46,6 +56,7 @@ export function AuthModal({
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const regEmailInputRef = useRef<HTMLInputElement | null>(null);
+  const formOpenedAtRef = useRef<number>(Date.now());
 
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +64,14 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [resetSentEmail, setResetSentEmail] = useState<string | null>(null);
+
+  // Anti-bot & rate-limit state
+  const [honeypot, setHoneypot] = useState('');
+  const [challenge, setChallenge] = useState<HumanChallengeData>(() => createHumanChallenge());
+  const [challengeAnswer, setChallengeAnswer] = useState('');
+  const [challengeError, setChallengeError] = useState(false);
+  const [cooldownMs, setCooldownMs] = useState(0);
+  const [loginRecentFailures, setLoginRecentFailures] = useState(0);
 
   // Login fields
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -70,6 +89,23 @@ export function AuthModal({
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const activeRateAction: RateLimitAction =
+    mode === 'login' ? 'login' : mode === 'reset' ? 'reset_password' : 'register';
+
+  const refreshChallenge = () => {
+    setChallenge(createHumanChallenge());
+    setChallengeAnswer('');
+    setChallengeError(false);
+  };
+
+  const syncRateLimitState = (action: RateLimitAction) => {
+    const status = checkRateLimit(action);
+    setCooldownMs(status.retryAfterMs);
+    if (action === 'login') {
+      setLoginRecentFailures(status.recentAttempts);
+    }
+  };
 
   const setAuthError = (message: string | null, code: string | null = null) => {
     setError(message);
@@ -89,8 +125,32 @@ export function AuthModal({
     setGoogleSubmitting(false);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setHoneypot('');
+    setChallenge(createHumanChallenge());
+    setChallengeAnswer('');
+    setChallengeError(false);
+    formOpenedAtRef.current = Date.now();
     window.setTimeout(() => firstInputRef.current?.focus(), 40);
   }, [open, initialMode]);
+
+  useEffect(() => {
+    if (!open) return;
+    formOpenedAtRef.current = Date.now();
+    setHoneypot('');
+    setChallenge(createHumanChallenge());
+    setChallengeAnswer('');
+    setChallengeError(false);
+    syncRateLimitState(activeRateAction);
+  }, [open, mode, activeRateAction]);
+
+  // Live countdown ticker when rate-limited
+  useEffect(() => {
+    if (!open || cooldownMs <= 0) return;
+    const timer = window.setInterval(() => {
+      syncRateLimitState(activeRateAction);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [open, cooldownMs, activeRateAction]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,10 +164,41 @@ export function AuthModal({
   if (!open) return null;
 
   const suggestedUsername = normalizeUsernameKey(regUsername || regName);
+  const passwordStrength = evaluatePasswordStrength(regPassword);
+  const requireLoginChallenge = loginRecentFailures >= 2;
+
+  const validateHumanChallenge = (): boolean => {
+    const parsed = Number(challengeAnswer.trim());
+    if (challengeAnswer.trim() === '' || Number.isNaN(parsed) || parsed !== challenge.expectedAnswer) {
+      setChallengeError(true);
+      setAuthError('Please solve the human verification question correctly to continue.');
+      return false;
+    }
+    setChallengeError(false);
+    return true;
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+
+    const botCheck = verifyBotGuards({
+      honeypotValue: honeypot,
+      formOpenedAt: formOpenedAtRef.current,
+      minHumanMs: 600,
+    });
+    if (!botCheck.ok) {
+      setAuthError(botCheck.reason || 'Automated submission blocked.');
+      return;
+    }
+
+    const rateStatus = checkRateLimit('login');
+    if (!rateStatus.allowed) {
+      setCooldownMs(rateStatus.retryAfterMs);
+      setAuthError(rateStatus.message || 'Too many login attempts.', 'auth/too-many-requests');
+      return;
+    }
+
     if (!loginIdentifier.trim()) {
       setAuthError('Please enter your username or email.');
       return;
@@ -117,12 +208,19 @@ export function AuthModal({
       return;
     }
 
+    if (requireLoginChallenge && !validateHumanChallenge()) {
+      refreshChallenge();
+      return;
+    }
+
     setSubmitting(true);
     try {
       await onLogin(loginIdentifier, loginPassword);
       setLoginPassword('');
       onClose();
     } catch (err) {
+      syncRateLimitState('login');
+      refreshChallenge();
       setAuthError(
         err instanceof Error ? err.message : 'Login failed.',
         getAuthErrorCode(err) || null
@@ -136,8 +234,31 @@ export function AuthModal({
     e.preventDefault();
     setAuthError(null);
     setResetSentEmail(null);
+
+    const botCheck = verifyBotGuards({
+      honeypotValue: honeypot,
+      formOpenedAt: formOpenedAtRef.current,
+      minHumanMs: 800,
+    });
+    if (!botCheck.ok) {
+      setAuthError(botCheck.reason || 'Automated submission blocked.');
+      return;
+    }
+
+    const rateStatus = checkRateLimit('reset_password');
+    if (!rateStatus.allowed) {
+      setCooldownMs(rateStatus.retryAfterMs);
+      setAuthError(rateStatus.message || 'Too many reset requests.', 'auth/too-many-requests');
+      return;
+    }
+
     if (!resetIdentifier.trim()) {
       setAuthError('Please enter your username or email address.');
+      return;
+    }
+
+    if (!validateHumanChallenge()) {
+      refreshChallenge();
       return;
     }
 
@@ -145,7 +266,11 @@ export function AuthModal({
     try {
       const sentTo = await onResetPassword(resetIdentifier);
       setResetSentEmail(sentTo);
+      syncRateLimitState('reset_password');
+      refreshChallenge();
     } catch (err) {
+      syncRateLimitState('reset_password');
+      refreshChallenge();
       setAuthError(
         err instanceof Error ? err.message : 'Could not send password reset email.',
         getAuthErrorCode(err) || null
@@ -159,21 +284,43 @@ export function AuthModal({
     e.preventDefault();
     setAuthError(null);
 
+    const botCheck = verifyBotGuards({
+      honeypotValue: honeypot,
+      formOpenedAt: formOpenedAtRef.current,
+      minHumanMs: 900,
+    });
+    if (!botCheck.ok) {
+      setAuthError(botCheck.reason || 'Automated submission blocked.');
+      return;
+    }
+
+    const rateStatus = checkRateLimit('register');
+    if (!rateStatus.allowed) {
+      setCooldownMs(rateStatus.retryAfterMs);
+      setAuthError(rateStatus.message || 'Too many registration attempts.', 'auth/too-many-requests');
+      return;
+    }
+
     if (!regName.trim()) {
       setAuthError('Full Name is required.');
       return;
     }
     if (!regEmail.trim() || !regEmail.includes('@')) {
       setAuthError('Please enter a valid email address.', 'auth/invalid-email');
-      regEmailInputRef.current?.focus();
+      regEmailInputRef.current?.focus({ preventScroll: true });
       return;
     }
-    if (regPassword.length < 6) {
-      setAuthError('Password must be at least 6 characters long.');
+    if (!passwordStrength.isAcceptable) {
+      setAuthError(passwordStrength.reason || 'Please choose a stronger password.', 'auth/weak-password');
       return;
     }
     if (regPassword !== regConfirmPassword) {
       setAuthError('Password and Confirm Password do not match.');
+      return;
+    }
+
+    if (!validateHumanChallenge()) {
+      refreshChallenge();
       return;
     }
 
@@ -189,6 +336,8 @@ export function AuthModal({
       setRegConfirmPassword('');
       onClose();
     } catch (err) {
+      syncRateLimitState('register');
+      refreshChallenge();
       const code = getAuthErrorCode(err) || null;
       setAuthError(err instanceof Error ? err.message : 'Registration failed.', code);
       if (code === 'auth/email-already-in-use' || code === 'auth/invalid-email') {
@@ -201,6 +350,11 @@ export function AuthModal({
 
   const handleGoogle = async () => {
     setAuthError(null);
+    const rateStatus = checkRateLimit('google_auth');
+    if (!rateStatus.allowed) {
+      setAuthError(rateStatus.message || 'Too many Google sign-in attempts.', 'auth/too-many-requests');
+      return;
+    }
     setGoogleSubmitting(true);
     try {
       await onGoogleSignIn();
@@ -216,6 +370,7 @@ export function AuthModal({
   };
 
   const isBusy = submitting || googleSubmitting;
+  const isLockedOut = cooldownMs > 0;
   const isDuplicateEmailError = mode === 'register' && errorCode === 'auth/email-already-in-use';
   const isDuplicateUsernameError =
     mode === 'register' && errorCode === 'auth/username-already-in-use';
@@ -400,6 +555,20 @@ export function AuthModal({
                 </div>
               ) : (
                 <form onSubmit={handleResetSubmit} className="space-y-4">
+                  {/* Anti-bot honeypot field */}
+                  <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+                    <label htmlFor="reset-website">Website</label>
+                    <input
+                      id="reset-website"
+                      name="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                    />
+                  </div>
+
                   <div>
                     <label
                       htmlFor="reset-identifier"
@@ -426,12 +595,29 @@ export function AuthModal({
                     </div>
                   </div>
 
+                  <HumanChallenge
+                    idPrefix="reset-check"
+                    challenge={challenge}
+                    value={challengeAnswer}
+                    onChange={(v) => {
+                      setChallengeAnswer(v);
+                      if (challengeError) setChallengeError(false);
+                    }}
+                    onRefresh={refreshChallenge}
+                    hasError={challengeError}
+                    disabled={submitting || isLockedOut}
+                  />
+
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || isLockedOut}
                     className="w-full py-2.5 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
                   >
-                    {submitting ? 'Sending reset link...' : 'Send Reset Link'}
+                    {isLockedOut
+                      ? `Wait ${formatCooldown(cooldownMs)}`
+                      : submitting
+                        ? 'Sending reset link...'
+                        : 'Send Reset Link'}
                   </button>
                 </form>
               )}
@@ -451,6 +637,19 @@ export function AuthModal({
             </div>
           ) : mode === 'login' ? (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* Anti-bot honeypot field */}
+              <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+                <label htmlFor="login-website">Website</label>
+                <input
+                  id="login-website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                />
+              </div>
               <div>
                 <label
                   htmlFor="login-username"
@@ -528,16 +727,48 @@ export function AuthModal({
                 </div>
               </div>
 
+              {requireLoginChallenge && (
+                <HumanChallenge
+                  idPrefix="login-check"
+                  challenge={challenge}
+                  value={challengeAnswer}
+                  onChange={(v) => {
+                    setChallengeAnswer(v);
+                    if (challengeError) setChallengeError(false);
+                  }}
+                  onRefresh={refreshChallenge}
+                  hasError={challengeError}
+                  disabled={isBusy || isLockedOut}
+                />
+              )}
+
               <button
                 type="submit"
-                disabled={isBusy}
+                disabled={isBusy || isLockedOut}
                 className="w-full py-2.5 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
               >
-                {submitting ? 'Signing in...' : 'Login'}
+                {isLockedOut
+                  ? `Locked — try again in ${formatCooldown(cooldownMs)}`
+                  : submitting
+                    ? 'Signing in...'
+                    : 'Login'}
               </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+              {/* Anti-bot honeypot field */}
+              <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+                <label htmlFor="reg-website">Website</label>
+                <input
+                  id="reg-website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                />
+              </div>
               <div>
                 <label
                   htmlFor="reg-name"
@@ -671,10 +902,10 @@ export function AuthModal({
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
+                    placeholder="At least 8 chars (letters & numbers)"
                     className="w-full pl-9 pr-10 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-lg focus:border-slate-900 dark:focus:border-slate-400"
                   />
                   <button
@@ -690,6 +921,45 @@ export function AuthModal({
                     )}
                   </button>
                 </div>
+                {regPassword.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-1" aria-hidden="true">
+                      {[1, 2, 3, 4].map((seg) => {
+                        const active = passwordStrength.score >= seg;
+                        const color =
+                          passwordStrength.score <= 1
+                            ? 'bg-rose-500'
+                            : passwordStrength.score === 2
+                              ? 'bg-amber-500'
+                              : passwordStrength.score === 3
+                                ? 'bg-blue-500'
+                                : 'bg-emerald-500';
+                        return (
+                          <div
+                            key={seg}
+                            className={`h-1 flex-1 rounded-full transition-colors ${
+                              active ? color : 'bg-slate-200 dark:bg-slate-800'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span
+                        className={
+                          passwordStrength.isAcceptable
+                            ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                            : 'text-rose-600 dark:text-rose-400 font-medium'
+                        }
+                      >
+                        Strength: {passwordStrength.label}
+                      </span>
+                      <span className="text-slate-400 dark:text-slate-500">
+                        {passwordStrength.checks.minLength ? '8+ chars ✓' : 'Min 8 chars'}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -709,7 +979,7 @@ export function AuthModal({
                     type={showConfirmPassword ? 'text' : 'password'}
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={regConfirmPassword}
                     onChange={(e) => setRegConfirmPassword(e.target.value)}
                     placeholder="Re-enter your password"
@@ -739,12 +1009,29 @@ export function AuthModal({
                 )}
               </div>
 
+              <HumanChallenge
+                idPrefix="reg-check"
+                challenge={challenge}
+                value={challengeAnswer}
+                onChange={(v) => {
+                  setChallengeAnswer(v);
+                  if (challengeError) setChallengeError(false);
+                }}
+                onRefresh={refreshChallenge}
+                hasError={challengeError}
+                disabled={isBusy || isLockedOut}
+              />
+
               <button
                 type="submit"
-                disabled={isBusy}
+                disabled={isBusy || isLockedOut}
                 className="w-full py-2.5 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
               >
-                {submitting ? 'Creating account...' : 'Create Account'}
+                {isLockedOut
+                  ? `Wait ${formatCooldown(cooldownMs)}`
+                  : submitting
+                    ? 'Creating account...'
+                    : 'Create Account'}
               </button>
             </form>
           )}

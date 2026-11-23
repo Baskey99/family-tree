@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { FamilyMember, FamilyRelationship, Gender } from '../types/family';
 import { getEffectiveAge, getInitials } from '../lib/familyUtils';
+import { sanitizeImageUrl } from '../lib/security';
 import { GenderIndicator } from './GenderBadge';
 
 interface DirectoryViewProps {
@@ -163,9 +164,9 @@ export function DirectoryView({
                               : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800/70'
                           }`}
                         >
-                          {m.photoUrl ? (
+                          {sanitizeImageUrl(m.photoUrl) ? (
                             <img
-                              src={m.photoUrl}
+                              src={sanitizeImageUrl(m.photoUrl)}
                               alt={m.fullName}
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover"
@@ -298,9 +299,9 @@ export function DirectoryView({
                                     : 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 ring-pink-200 dark:ring-pink-800/70'
                                 }`}
                               >
-                                {m.photoUrl ? (
+                                {sanitizeImageUrl(m.photoUrl) ? (
                                   <img
-                                    src={m.photoUrl}
+                                    src={sanitizeImageUrl(m.photoUrl)}
                                     alt={m.fullName}
                                     referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover"

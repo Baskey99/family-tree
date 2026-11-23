@@ -587,13 +587,22 @@ export function inferDefaultGenderForRelation(relType: FormRelationshipType): Ge
   }
 }
 
+const ALLOWED_RASTER_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
 /**
  * Compresses and center-crops an uploaded image file to a crisp 160x160 JPEG Data URL
  * strictly under 60KB for fast rendering and safe Firestore document storage.
+ * Blocks SVG files (which can embed scripts) and oversized decompression bombs.
  */
 export async function compressImageToDataUrl(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) {
-    throw new Error('Please choose a valid image file (JPG, PNG, or WebP).');
+  if (!ALLOWED_RASTER_IMAGE_TYPES.has(file.type.toLowerCase())) {
+    throw new Error('Please choose a valid raster image file (JPG, PNG, WebP, or GIF). SVG files are not allowed.');
   }
   if (file.size > 10 * 1024 * 1024) {
     throw new Error('Image is too large. Please select an image smaller than 10 MB.');
@@ -615,6 +624,10 @@ export async function compressImageToDataUrl(file: File): Promise<string> {
     image.onerror = () => reject(new Error('The selected image appears to be corrupted or unsupported.'));
     image.src = dataUrl;
   });
+
+  if (img.width <= 0 || img.height <= 0 || img.width > 10000 || img.height > 10000) {
+    throw new Error('Image dimensions are out of safe bounds. Please choose a standard photo.');
+  }
 
   const targetSize = 160;
   const canvas = document.createElement('canvas');

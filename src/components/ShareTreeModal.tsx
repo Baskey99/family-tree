@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { GoogleIcon } from './GoogleIcon';
+import { checkRateLimit } from '../lib/security';
 import type {
   FamilyTreeRecord,
   ShareRole,
@@ -58,6 +59,7 @@ export function ShareTreeModal({
 }: ShareTreeModalProps) {
   const [identifier, setIdentifier] = useState('');
   const [role, setRole] = useState<ShareRole>('viewer');
+  const [inviteHoneypot, setInviteHoneypot] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -72,6 +74,18 @@ export function ShareTreeModal({
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+
+    if (inviteHoneypot.trim().length > 0) {
+      setError('Automated submission blocked.');
+      return;
+    }
+
+    const rateCheck = checkRateLimit('invite');
+    if (!rateCheck.allowed) {
+      setError(rateCheck.message || 'Too many invitations sent. Please wait before trying again.');
+      return;
+    }
+
     const trimmed = identifier.trim();
     if (!trimmed) {
       setError('Enter your family member’s email address or username.');
@@ -226,6 +240,19 @@ export function ShareTreeModal({
             <>
               {/* Invite Form */}
               <form onSubmit={handleInvite} className="space-y-3">
+                {/* Anti-bot honeypot */}
+                <div className="absolute -left-[9999px] opacity-0 pointer-events-none" aria-hidden="true">
+                  <label htmlFor="invite-company-url">Company URL</label>
+                  <input
+                    id="invite-company-url"
+                    name="company_url"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={inviteHoneypot}
+                    onChange={(e) => setInviteHoneypot(e.target.value)}
+                  />
+                </div>
                 <label
                   htmlFor="share-invite-identifier"
                   className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
