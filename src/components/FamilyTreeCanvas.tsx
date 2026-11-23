@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import type { TreeLayoutResult } from '../types/family';
 import { exportTreeAsPdf, exportTreeAsPng } from '../lib/exportTree';
-import { MemberCard } from './MemberCard';
+import { MemberCard, type LinkedTreeBadgeInfo } from './MemberCard';
 
 export interface FamilyTreeCanvasHandle {
   focusMember: (memberId: string) => void;
@@ -33,6 +33,9 @@ export interface FamilyTreeCanvasHandle {
 
 interface FamilyTreeCanvasProps {
   treeName: string;
+  activeTreeId?: string;
+  isCombinedView?: boolean;
+  linkedTreesByMemberId?: Map<string, LinkedTreeBadgeInfo>;
   canEdit?: boolean;
   isDark?: boolean;
   layout: TreeLayoutResult;
@@ -45,6 +48,7 @@ interface FamilyTreeCanvasProps {
   onAddRelative: (memberId: string) => void;
   onDeleteMember: (memberId: string) => void;
   onToggleCollapse: (memberId: string) => void;
+  onOpenLinkedTree?: (treeId: string) => void;
   onExpandAll: () => void;
   onResetLayout: () => void;
   onAddFirstMember: () => void;
@@ -58,6 +62,9 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
   function FamilyTreeCanvas(
     {
       treeName,
+      activeTreeId = '',
+      isCombinedView = false,
+      linkedTreesByMemberId,
       canEdit = true,
       isDark = false,
       layout,
@@ -70,6 +77,7 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
       onAddRelative,
       onDeleteMember,
       onToggleCollapse,
+      onOpenLinkedTree,
       onExpandAll,
       onResetLayout,
       onAddFirstMember,
@@ -174,16 +182,16 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
       [focusMember, fitToView, resetView]
     );
 
-    // Auto-fit when switching to a different tree or loading initial nodes
+    // Auto-fit when switching to a different tree, toggling Combined View, or loading initial nodes
     const lastNodeCountKeyRef = useRef<string>('');
     useEffect(() => {
-      const key = `${treeName}:${layout.nodes.length > 0 ? layout.nodes[0].member.treeId : 'empty'}`;
+      const key = `${treeName}:${isCombinedView ? 'combined' : 'single'}:${layout.nodes.length > 0 ? layout.nodes[0].member.treeId : 'empty'}`;
       if (layout.nodes.length > 0 && lastNodeCountKeyRef.current !== key) {
         lastNodeCountKeyRef.current = key;
         const id = window.requestAnimationFrame(() => fitToView());
         return () => window.cancelAnimationFrame(id);
       }
-    }, [treeName, layout.nodes, fitToView]);
+    }, [treeName, isCombinedView, layout.nodes, fitToView]);
 
     // Sync fullscreen state with browser
     useEffect(() => {
@@ -514,26 +522,39 @@ export const FamilyTreeCanvas = forwardRef<FamilyTreeCanvasHandle, FamilyTreeCan
 
           {/* Profile Cards Layer */}
           <div className="relative">
-            {layout.nodes.map((node) => (
-              <MemberCard
-                key={node.member.id}
-                node={node}
-                canEdit={canEdit}
-                isSelected={selectedMemberId === node.member.id}
-                isHighlighted={highlightedMemberId === node.member.id}
-                isDimmed={
-                  selectedMemberId !== null &&
-                  !connectedToSelected.has(node.member.id) &&
-                  highlightedMemberId !== node.member.id
-                }
-                onSelect={(id) => onSelectMember(id)}
-                onViewDetails={onViewDetails}
-                onEdit={onEditMember}
-                onAddRelative={onAddRelative}
-                onDelete={onDeleteMember}
-                onToggleCollapse={onToggleCollapse}
-              />
-            ))}
+            {layout.nodes.map((node) => {
+              const isExternalTreeMember = Boolean(
+                isCombinedView && activeTreeId && node.member.treeId !== activeTreeId
+              );
+              const linkedTreeInfo = !isCombinedView
+                ? linkedTreesByMemberId?.get(node.member.id)
+                : undefined;
+
+              return (
+                <MemberCard
+                  key={node.member.id}
+                  node={node}
+                  canEdit={canEdit}
+                  isCombinedView={isCombinedView}
+                  isExternalTreeMember={isExternalTreeMember}
+                  linkedTreeInfo={linkedTreeInfo}
+                  isSelected={selectedMemberId === node.member.id}
+                  isHighlighted={highlightedMemberId === node.member.id}
+                  isDimmed={
+                    selectedMemberId !== null &&
+                    !connectedToSelected.has(node.member.id) &&
+                    highlightedMemberId !== node.member.id
+                  }
+                  onSelect={(id) => onSelectMember(id)}
+                  onViewDetails={onViewDetails}
+                  onEdit={onEditMember}
+                  onAddRelative={onAddRelative}
+                  onDelete={onDeleteMember}
+                  onToggleCollapse={onToggleCollapse}
+                  onOpenLinkedTree={onOpenLinkedTree}
+                />
+              );
+            })}
           </div>
         </div>
 

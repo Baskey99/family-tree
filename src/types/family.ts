@@ -25,6 +25,10 @@ export type TreeRole = 'owner' | 'editor' | 'viewer';
 
 export type ShareRole = 'viewer' | 'editor';
 
+export type TreeLinkDirection = 'mutual' | 'source_is_parent' | 'target_is_parent';
+
+export type TreeLinkRequestStatus = 'pending' | 'accepted' | 'declined';
+
 export interface FamilyTreeRecord {
   id: string;
   ownerId: string;
@@ -65,6 +69,53 @@ export interface TreeMembership {
   updatedAt: string;
 }
 
+export interface TreeLinkRequest {
+  id: string;
+  sourceTreeId: string;
+  sourceTreeName: string;
+  sourceOwnerId: string;
+  sourceOwnerName: string;
+  sourceOwnerEmail: string;
+  sourceMemberId: string;
+  sourceMemberName: string;
+  sourceGrantsRole: ShareRole;
+  targetEmail: string;
+  relationshipType: StoredRelationshipType;
+  relationshipDirection: TreeLinkDirection;
+  customLabel: string;
+  note: string;
+  status: TreeLinkRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TreeConnection {
+  id: string;
+  requestId: string;
+  sourceTreeId: string;
+  sourceTreeName: string;
+  sourceOwnerId: string;
+  sourceOwnerName: string;
+  sourceOwnerEmail: string;
+  sourceMemberId: string;
+  sourceMemberName: string;
+  sourceGrantsRole: ShareRole;
+  targetTreeId: string;
+  targetTreeName: string;
+  targetOwnerId: string;
+  targetOwnerName: string;
+  targetOwnerEmail: string;
+  targetMemberId: string;
+  targetMemberName: string;
+  targetGrantsRole: ShareRole;
+  participantIds: string[];
+  relationshipType: StoredRelationshipType;
+  relationshipDirection: TreeLinkDirection;
+  customLabel: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FamilyMember {
   id: string;
   treeId: string;
@@ -78,6 +129,10 @@ export interface FamilyMember {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  /** Non-persisted UI metadata used in Combined Connected Tree View */
+  originTreeName?: string;
+  originTreeRole?: TreeRole;
+  originalMemberId?: string;
 }
 
 export interface FamilyRelationship {

@@ -236,6 +236,106 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidLinkDirection(dir) {
+      return dir is string && (
+        dir == 'mutual' ||
+        dir == 'source_is_parent' ||
+        dir == 'target_is_parent'
+      );
+    }
+
+    function isValidLinkStatus(status) {
+      return status is string && (
+        status == 'pending' ||
+        status == 'accepted' ||
+        status == 'declined'
+      );
+    }
+
+    function isValidTreeLinkRequest(data) {
+      return data.keys().hasAll([
+          'sourceTreeId', 'sourceTreeName', 'sourceOwnerId', 'sourceOwnerName',
+          'sourceOwnerEmail', 'sourceMemberId', 'sourceMemberName', 'sourceGrantsRole',
+          'targetEmail', 'relationshipType', 'relationshipDirection',
+          'customLabel', 'note', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'sourceTreeId', 'sourceTreeName', 'sourceOwnerId', 'sourceOwnerName',
+          'sourceOwnerEmail', 'sourceMemberId', 'sourceMemberName', 'sourceGrantsRole',
+          'targetEmail', 'relationshipType', 'relationshipDirection',
+          'customLabel', 'note', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.sourceTreeId)
+        && data.sourceTreeName is string && data.sourceTreeName.size() >= 1 && data.sourceTreeName.size() <= 120
+        && isValidId(data.sourceOwnerId)
+        && data.sourceOwnerName is string && data.sourceOwnerName.size() <= 120
+        && isValidEmail(data.sourceOwnerEmail)
+        && data.sourceOwnerEmail == data.sourceOwnerEmail.lower()
+        && isValidId(data.sourceMemberId)
+        && data.sourceMemberName is string && data.sourceMemberName.size() >= 1 && data.sourceMemberName.size() <= 140
+        && isValidRole(data.sourceGrantsRole)
+        && isValidEmail(data.targetEmail)
+        && data.targetEmail == data.targetEmail.lower()
+        && isValidRelationshipType(data.relationshipType)
+        && isValidLinkDirection(data.relationshipDirection)
+        && data.customLabel is string && data.customLabel.size() <= 80
+        && data.note is string && data.note.size() <= 300
+        && isValidLinkStatus(data.status)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTreeConnection(data) {
+      return data.keys().hasAll([
+          'requestId',
+          'sourceTreeId', 'sourceTreeName', 'sourceOwnerId', 'sourceOwnerName',
+          'sourceOwnerEmail', 'sourceMemberId', 'sourceMemberName', 'sourceGrantsRole',
+          'targetTreeId', 'targetTreeName', 'targetOwnerId', 'targetOwnerName',
+          'targetOwnerEmail', 'targetMemberId', 'targetMemberName', 'targetGrantsRole',
+          'participantIds', 'relationshipType', 'relationshipDirection',
+          'customLabel', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'requestId',
+          'sourceTreeId', 'sourceTreeName', 'sourceOwnerId', 'sourceOwnerName',
+          'sourceOwnerEmail', 'sourceMemberId', 'sourceMemberName', 'sourceGrantsRole',
+          'targetTreeId', 'targetTreeName', 'targetOwnerId', 'targetOwnerName',
+          'targetOwnerEmail', 'targetMemberId', 'targetMemberName', 'targetGrantsRole',
+          'participantIds', 'relationshipType', 'relationshipDirection',
+          'customLabel', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.requestId)
+        && isValidId(data.sourceTreeId)
+        && data.sourceTreeName is string && data.sourceTreeName.size() >= 1 && data.sourceTreeName.size() <= 120
+        && isValidId(data.sourceOwnerId)
+        && data.sourceOwnerName is string && data.sourceOwnerName.size() <= 120
+        && isValidEmail(data.sourceOwnerEmail)
+        && data.sourceOwnerEmail == data.sourceOwnerEmail.lower()
+        && isValidId(data.sourceMemberId)
+        && data.sourceMemberName is string && data.sourceMemberName.size() >= 1 && data.sourceMemberName.size() <= 140
+        && isValidRole(data.sourceGrantsRole)
+        && isValidId(data.targetTreeId)
+        && data.targetTreeId != data.sourceTreeId
+        && data.targetTreeName is string && data.targetTreeName.size() >= 1 && data.targetTreeName.size() <= 120
+        && isValidId(data.targetOwnerId)
+        && data.targetOwnerId != data.sourceOwnerId
+        && data.targetOwnerName is string && data.targetOwnerName.size() <= 120
+        && isValidEmail(data.targetOwnerEmail)
+        && data.targetOwnerEmail == data.targetOwnerEmail.lower()
+        && isValidId(data.targetMemberId)
+        && data.targetMemberName is string && data.targetMemberName.size() >= 1 && data.targetMemberName.size() <= 140
+        && isValidRole(data.targetGrantsRole)
+        && data.participantIds is list
+        && data.participantIds.size() == 2
+        && data.participantIds[0] == data.sourceOwnerId
+        && data.participantIds[1] == data.targetOwnerId
+        && isValidRelationshipType(data.relationshipType)
+        && isValidLinkDirection(data.relationshipDirection)
+        && data.customLabel is string && data.customLabel.size() <= 80
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     // --- Collection: /users/{userId} (strictly private to owner) ---
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && userId == request.auth.uid;
@@ -344,26 +444,174 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/tree_invites/$(incoming().inviteId)).data.ownerId == incoming().ownerId
             && get(/databases/$(database)/documents/tree_invites/$(incoming().inviteId)).data.role == incoming().role
             && get(/databases/$(database)/documents/tree_invites/$(incoming().inviteId)).data.inviteeEmail == currentUserEmail()
+          ) ||
+          // Action 3: Recipient accepts a valid pending cross-user tree connection request
+          (
+            incoming().userId == request.auth.uid
+            && incoming().userEmail == currentUserEmail()
+            && isValidId(incoming().inviteId)
+            && exists(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId))
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.status == 'pending'
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceTreeId == incoming().treeId
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceOwnerId == incoming().ownerId
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceGrantsRole == incoming().role
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.targetEmail == currentUserEmail()
           )
         );
 
       allow update: if isSignedIn()
         && isValidId(membershipId)
         && isValidTreeMembership(incoming(), membershipId)
-        && existing().ownerId == request.auth.uid
         && incoming().ownerId == existing().ownerId
         && incoming().treeId == existing().treeId
         && incoming().userId == existing().userId
         && incoming().userEmail == existing().userEmail
-        && incoming().inviteId == existing().inviteId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'treeName', 'updatedAt'])
-        && isTreeOwner(existing().treeId);
+        && (
+          // Action 1: Tree owner updates collaborator permission or tree name
+          (
+            existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'treeName', 'inviteId', 'updatedAt'])
+            && isTreeOwner(existing().treeId)
+          ) ||
+          // Action 2: Recipient updates existing membership via a newly accepted tree connection request
+          (
+            existing().userId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'treeName', 'inviteId', 'updatedAt'])
+            && isValidId(incoming().inviteId)
+            && exists(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId))
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.status == 'pending'
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceTreeId == existing().treeId
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceOwnerId == existing().ownerId
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.sourceGrantsRole == incoming().role
+            && get(/databases/$(database)/documents/tree_link_requests/$(incoming().inviteId)).data.targetEmail == currentUserEmail()
+          )
+        );
 
       allow delete: if isSignedIn()
         && isValidId(membershipId)
         && (existing().ownerId == request.auth.uid || existing().userId == request.auth.uid);
+    }
+
+    // --- Collection: /tree_link_requests/{requestId} (cross-user consent requests) ---
+    match /tree_link_requests/{requestId} {
+      allow get: if isSignedIn()
+        && isValidId(requestId)
+        && (existing().sourceOwnerId == request.auth.uid || existing().targetEmail == currentUserEmail());
+
+      allow list: if isSignedIn()
+        && (existing().sourceOwnerId == request.auth.uid || existing().targetEmail == currentUserEmail());
+
+      allow create: if isSignedIn()
+        && isValidId(requestId)
+        && isValidTreeLinkRequest(incoming())
+        && incoming().sourceOwnerId == request.auth.uid
+        && incoming().sourceOwnerEmail == currentUserEmail()
+        && incoming().targetEmail != currentUserEmail()
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isTreeOwner(incoming().sourceTreeId)
+        && exists(/databases/$(database)/documents/family_trees/$(incoming().sourceTreeId)/members/$(incoming().sourceMemberId));
+
+      allow update: if isSignedIn()
+        && isValidId(requestId)
+        && isValidTreeLinkRequest(incoming())
+        && existing().status == 'pending'
+        && existing().targetEmail == currentUserEmail()
+        && (incoming().status == 'accepted' || incoming().status == 'declined')
+        && incoming().sourceTreeId == existing().sourceTreeId
+        && incoming().sourceTreeName == existing().sourceTreeName
+        && incoming().sourceOwnerId == existing().sourceOwnerId
+        && incoming().sourceOwnerName == existing().sourceOwnerName
+        && incoming().sourceOwnerEmail == existing().sourceOwnerEmail
+        && incoming().sourceMemberId == existing().sourceMemberId
+        && incoming().sourceMemberName == existing().sourceMemberName
+        && incoming().sourceGrantsRole == existing().sourceGrantsRole
+        && incoming().targetEmail == existing().targetEmail
+        && incoming().relationshipType == existing().relationshipType
+        && incoming().relationshipDirection == existing().relationshipDirection
+        && incoming().customLabel == existing().customLabel
+        && incoming().note == existing().note
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isSignedIn()
+        && isValidId(requestId)
+        && (existing().sourceOwnerId == request.auth.uid || existing().targetEmail == currentUserEmail());
+    }
+
+    // --- Collection: /tree_connections/{connectionId} (active mutually-consented tree bridges) ---
+    match /tree_connections/{connectionId} {
+      allow get: if isSignedIn()
+        && isValidId(connectionId)
+        && (existing().sourceOwnerId == request.auth.uid || existing().targetOwnerId == request.auth.uid);
+
+      allow list: if isSignedIn()
+        && request.auth.uid in existing().participantIds;
+
+      allow create: if isSignedIn()
+        && isValidId(connectionId)
+        && isValidTreeConnection(incoming())
+        && incoming().targetOwnerId == request.auth.uid
+        && incoming().targetOwnerEmail == currentUserEmail()
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isTreeOwner(incoming().targetTreeId)
+        && exists(/databases/$(database)/documents/family_trees/$(incoming().targetTreeId)/members/$(incoming().targetMemberId))
+        && exists(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId))
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.status == 'pending'
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.targetEmail == currentUserEmail()
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.sourceTreeId == incoming().sourceTreeId
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.sourceOwnerId == incoming().sourceOwnerId
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.sourceMemberId == incoming().sourceMemberId
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.sourceGrantsRole == incoming().sourceGrantsRole
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.relationshipType == incoming().relationshipType
+        && get(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.relationshipDirection == incoming().relationshipDirection
+        && getAfter(/databases/$(database)/documents/tree_link_requests/$(incoming().requestId)).data.status == 'accepted';
+
+      allow update: if isSignedIn()
+        && isValidId(connectionId)
+        && isValidTreeConnection(incoming())
+        && incoming().requestId == existing().requestId
+        && incoming().sourceTreeId == existing().sourceTreeId
+        && incoming().sourceTreeName == existing().sourceTreeName
+        && incoming().sourceOwnerId == existing().sourceOwnerId
+        && incoming().sourceOwnerName == existing().sourceOwnerName
+        && incoming().sourceOwnerEmail == existing().sourceOwnerEmail
+        && incoming().sourceMemberId == existing().sourceMemberId
+        && incoming().sourceMemberName == existing().sourceMemberName
+        && incoming().targetTreeId == existing().targetTreeId
+        && incoming().targetTreeName == existing().targetTreeName
+        && incoming().targetOwnerId == existing().targetOwnerId
+        && incoming().targetOwnerName == existing().targetOwnerName
+        && incoming().targetOwnerEmail == existing().targetOwnerEmail
+        && incoming().targetMemberId == existing().targetMemberId
+        && incoming().targetMemberName == existing().targetMemberName
+        && incoming().participantIds == existing().participantIds
+        && incoming().relationshipType == existing().relationshipType
+        && incoming().relationshipDirection == existing().relationshipDirection
+        && incoming().customLabel == existing().customLabel
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Source owner updates view/edit consent on their own tree
+          (
+            existing().sourceOwnerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['sourceGrantsRole', 'updatedAt'])
+          ) ||
+          // Action 2: Target owner updates view/edit consent on their own tree
+          (
+            existing().targetOwnerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['targetGrantsRole', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(connectionId)
+        && (existing().sourceOwnerId == request.auth.uid || existing().targetOwnerId == request.auth.uid);
     }
 
     // --- Collection: /family_trees/{treeId} (strictly isolated to owner + invited family members) ---

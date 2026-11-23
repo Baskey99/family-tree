@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ChevronUp,
   Eye,
+  GitMerge,
   MapPin,
   Pencil,
   Plus,
@@ -13,9 +14,18 @@ import { getEffectiveAge, getInitials } from '../lib/familyUtils';
 import { sanitizeImageUrl } from '../lib/security';
 import { GenderIndicator } from './GenderBadge';
 
+export interface LinkedTreeBadgeInfo {
+  treeId: string;
+  treeName: string;
+  relationLabel: string;
+}
+
 interface MemberCardProps {
   node: LayoutNode;
   canEdit?: boolean;
+  isCombinedView?: boolean;
+  isExternalTreeMember?: boolean;
+  linkedTreeInfo?: LinkedTreeBadgeInfo;
   isSelected: boolean;
   isHighlighted: boolean;
   isDimmed: boolean;
@@ -25,11 +35,15 @@ interface MemberCardProps {
   onAddRelative: (memberId: string) => void;
   onDelete: (memberId: string) => void;
   onToggleCollapse: (memberId: string) => void;
+  onOpenLinkedTree?: (treeId: string) => void;
 }
 
 export const MemberCard = React.memo(function MemberCard({
   node,
   canEdit = true,
+  isCombinedView = false,
+  isExternalTreeMember = false,
+  linkedTreeInfo,
   isSelected,
   isHighlighted,
   isDimmed,
@@ -39,6 +53,7 @@ export const MemberCard = React.memo(function MemberCard({
   onAddRelative,
   onDelete,
   onToggleCollapse,
+  onOpenLinkedTree,
 }: MemberCardProps) {
   const { member, x, y, width, height, hasChildren, isCollapsed, hiddenDescendantCount } = node;
   const [imgError, setImgError] = useState(false);
@@ -46,6 +61,7 @@ export const MemberCard = React.memo(function MemberCard({
   const isMale = member.gender === 'male';
   const { age } = getEffectiveAge(member);
   const initials = getInitials(member.fullName);
+  const allowInlineEdit = canEdit && !isExternalTreeMember;
 
   const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,7 +90,7 @@ export const MemberCard = React.memo(function MemberCard({
       <div
         role="button"
         tabIndex={0}
-        aria-label={`${member.fullName}, ${isMale ? 'Male' : 'Female'}${age !== null ? `, age ${age}` : ''}`}
+        aria-label={`${member.fullName}, ${isMale ? 'Male' : 'Female'}${age !== null ? `, age ${age}` : ''}${member.originTreeName ? `, from ${member.originTreeName}` : ''}`}
         aria-pressed={isSelected}
         onClick={handleCardClick}
         onDoubleClick={(e) => {
@@ -87,7 +103,9 @@ export const MemberCard = React.memo(function MemberCard({
             ? 'ring-2 ring-blue-600 dark:ring-blue-400 border border-blue-600 dark:border-blue-400 shadow-lg'
             : isSelected
               ? 'ring-2 ring-slate-900 dark:ring-slate-100 border border-slate-900 dark:border-slate-100 shadow-md'
-              : 'border border-slate-200/90 dark:border-slate-700/90 hover:border-slate-300 dark:hover:border-slate-500 shadow-xs hover:shadow-sm'
+              : isExternalTreeMember
+                ? 'border border-dashed border-blue-300 dark:border-blue-700/80 hover:border-blue-400 dark:hover:border-blue-500 shadow-xs hover:shadow-sm'
+                : 'border border-slate-200/90 dark:border-slate-700/90 hover:border-slate-300 dark:hover:border-slate-500 shadow-xs hover:shadow-sm'
         }`}
       >
         {/* Clean 3px top gender stripe (Blue = Male, Pink = Female) */}
@@ -142,7 +160,33 @@ export const MemberCard = React.memo(function MemberCard({
               )}
             </div>
 
-            {member.address && (
+            {isCombinedView && member.originTreeName ? (
+              <p
+                title={`Family tree: ${member.originTreeName}`}
+                className={`flex items-center gap-1 mt-1 text-[10.5px] truncate ${
+                  isExternalTreeMember
+                    ? 'text-blue-700 dark:text-blue-400 font-medium'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                <GitMerge className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{member.originTreeName}</span>
+              </p>
+            ) : !isCombinedView && linkedTreeInfo && onOpenLinkedTree ? (
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenLinkedTree(linkedTreeInfo.treeId);
+                }}
+                title={`Connected (${linkedTreeInfo.relationLabel}) to ${linkedTreeInfo.treeName}`}
+                className="inline-flex items-center gap-1 mt-1 max-w-full text-[10.5px] font-medium text-blue-700 dark:text-blue-400 hover:underline truncate"
+              >
+                <GitMerge className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{linkedTreeInfo.treeName}</span>
+              </button>
+            ) : member.address ? (
               <p
                 title={member.address}
                 className="flex items-center gap-1 mt-1 text-[11px] text-slate-500 dark:text-slate-400 truncate"
@@ -150,7 +194,7 @@ export const MemberCard = React.memo(function MemberCard({
                 <MapPin className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
                 <span className="truncate">{member.address}</span>
               </p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -174,7 +218,18 @@ export const MemberCard = React.memo(function MemberCard({
         >
           <Eye className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
         </button>
-        {canEdit && (
+        {isExternalTreeMember && onOpenLinkedTree && (
+          <button
+            type="button"
+            title={`Open ${member.originTreeName || 'connected tree'}`}
+            aria-label={`Open ${member.originTreeName || 'connected tree'}`}
+            onClick={() => onOpenLinkedTree(member.treeId)}
+            className="p-2 sm:p-1.5 rounded-md text-blue-300 dark:text-blue-600 hover:bg-slate-700 dark:hover:bg-slate-200 transition-colors"
+          >
+            <GitMerge className="w-4 h-4 sm:w-3.5 sm:h-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {allowInlineEdit && (
           <>
             <button
               type="button"

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowUpRight,
   Calendar,
   FileText,
+  GitMerge,
   Link2,
   MapPin,
   Pencil,
@@ -14,6 +16,7 @@ import type {
   FamilyMember,
   FamilyRelationship,
   RelatedMemberItem,
+  TreeConnection,
 } from '../types/family';
 import {
   deriveMemberRelationships,
@@ -23,12 +26,17 @@ import {
 } from '../lib/familyUtils';
 import { sanitizeImageUrl } from '../lib/security';
 import { GenderIndicator } from './GenderBadge';
+import { formatTreeLinkRelationship } from './ConnectTreesModal';
 
 interface MemberDetailsPanelProps {
   member: FamilyMember | null;
   members: FamilyMember[];
   relationships: FamilyRelationship[];
   generation: number | undefined;
+  activeTreeId?: string;
+  isOwnerOfActiveTree?: boolean;
+  isCombinedView?: boolean;
+  memberConnections?: TreeConnection[];
   canEdit?: boolean;
   onClose: () => void;
   onSelectMember: (memberId: string) => void;
@@ -36,6 +44,8 @@ interface MemberDetailsPanelProps {
   onAddRelative: (member: FamilyMember) => void;
   onDelete: (member: FamilyMember) => void;
   onDeleteRelationship: (relationshipId: string) => void;
+  onOpenConnectModal?: (memberId: string) => void;
+  onJumpToConnectedTree?: (treeId: string, openCombined?: boolean) => void;
 }
 
 function RelationGroup({
@@ -85,22 +95,30 @@ function RelationGroup({
                   </span>
                   <span className="block text-xs text-slate-500 dark:text-slate-400">
                     {item.label}
-                    {item.isDerived ? ' · Derived' : ''}
+                    {item.relationshipId?.startsWith('bridge_')
+                      ? ' · Cross-tree link'
+                      : item.isDerived
+                        ? ' · Derived'
+                        : ''}
                   </span>
                 </span>
               </button>
 
-              {canEdit && item.relationshipId && !item.isDerived && (
-                <button
-                  type="button"
-                  title="Remove connection"
-                  aria-label={`Remove connection to ${item.member.fullName}`}
-                  onClick={() => onUnlink(item.relationshipId!)}
-                  className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
-                >
-                  <Unlink className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )}
+              {canEdit &&
+                item.relationshipId &&
+                !item.isDerived &&
+                !item.relationshipId.startsWith('bridge_') &&
+                !item.relationshipId.includes('::') && (
+                  <button
+                    type="button"
+                    title="Remove connection"
+                    aria-label={`Remove connection to ${item.member.fullName}`}
+                    onClick={() => onUnlink(item.relationshipId!)}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
+                  >
+                    <Unlink className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                )}
             </li>
           );
         })}
@@ -114,6 +132,10 @@ export function MemberDetailsPanel({
   members,
   relationships,
   generation,
+  activeTreeId = '',
+  isOwnerOfActiveTree = false,
+  isCombinedView = false,
+  memberConnections = [],
   canEdit = true,
   onClose,
   onSelectMember,
@@ -121,6 +143,8 @@ export function MemberDetailsPanel({
   onAddRelative,
   onDelete,
   onDeleteRelationship,
+  onOpenConnectModal,
+  onJumpToConnectedTree,
 }: MemberDetailsPanelProps) {
   const [imgError, setImgError] = useState(false);
 
@@ -131,6 +155,8 @@ export function MemberDetailsPanel({
 
   if (!member || !derived) return null;
 
+  const isExternalTreeMember = Boolean(activeTreeId && member.treeId !== activeTreeId);
+  const effectiveCanEdit = canEdit && !isExternalTreeMember;
   const isMale = member.gender === 'male';
   const { age, source } = getEffectiveAge(member);
   const totalConnections =
@@ -234,7 +260,28 @@ export function MemberDetailsPanel({
         </div>
 
         {/* Action Buttons */}
-        {canEdit ? (
+        {isExternalTreeMember ? (
+          <div className="bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/70 rounded-xl p-3.5 space-y-2.5">
+            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              Belongs to connected tree{' '}
+              <strong className="text-slate-900 dark:text-slate-100">
+                “{member.originTreeName || 'Connected Family Tree'}”
+              </strong>{' '}
+              ({member.originTreeRole === 'editor' ? 'Can view & edit' : 'View only'}).
+            </p>
+            {onJumpToConnectedTree && (
+              <button
+                type="button"
+                onClick={() => onJumpToConnectedTree(member.treeId, false)}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                Open “{member.originTreeName || 'Connected Tree'}”
+                {member.originTreeRole === 'editor' ? ' to Edit' : ''}
+              </button>
+            )}
+          </div>
+        ) : effectiveCanEdit ? (
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -315,6 +362,93 @@ export function MemberDetailsPanel({
           </dl>
         </div>
 
+        {/* Connected Family Trees (Cross-User Links) */}
+        {(memberConnections.length > 0 || (isOwnerOfActiveTree && !isExternalTreeMember && onOpenConnectModal)) && (
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <GitMerge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                Connected Family Trees
+              </h4>
+              {memberConnections.length > 0 && (
+                <span className="text-xs font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                  {memberConnections.length} linked
+                </span>
+              )}
+            </div>
+
+            {memberConnections.length > 0 && (
+              <ul className="space-y-2">
+                {memberConnections.map((conn) => {
+                  const rawMemberId = member.originalMemberId || member.id;
+                  const isSourceSide =
+                    conn.sourceTreeId === member.treeId && conn.sourceMemberId === rawMemberId;
+                  const otherTreeId = isSourceSide ? conn.targetTreeId : conn.sourceTreeId;
+                  const otherTreeName = isSourceSide ? conn.targetTreeName : conn.sourceTreeName;
+                  const otherMemberName = isSourceSide
+                    ? conn.targetMemberName
+                    : conn.sourceMemberName;
+                  const relationLabel = formatTreeLinkRelationship(
+                    conn.relationshipType,
+                    conn.relationshipDirection,
+                    conn.customLabel,
+                    isSourceSide ? 'source_to_target' : 'target_to_source'
+                  );
+
+                  return (
+                    <li
+                      key={conn.id}
+                      className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 space-y-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          {otherMemberName} · {otherTreeName}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Linked as {relationLabel}
+                        </p>
+                      </div>
+                      {onJumpToConnectedTree && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onJumpToConnectedTree(otherTreeId, false)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+                            Open Tree
+                          </button>
+                          {!isCombinedView && (
+                            <button
+                              type="button"
+                              onClick={() => onJumpToConnectedTree(member.treeId, true)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-md transition-colors"
+                            >
+                              <GitMerge className="w-3 h-3" aria-hidden="true" />
+                              Combined View
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {isOwnerOfActiveTree && !isExternalTreeMember && onOpenConnectModal && (
+              <button
+                type="button"
+                onClick={() => onOpenConnectModal(member.originalMemberId || member.id)}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+                Connect with Another User’s Tree
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Relationships */}
         <div className="border-t border-slate-100 dark:border-slate-800 pt-5 space-y-4">
           <div className="flex items-center justify-between">
@@ -329,7 +463,7 @@ export function MemberDetailsPanel({
 
           {totalConnections === 0 ? (
             <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 rounded-xl p-4">
-              {canEdit ? (
+              {effectiveCanEdit ? (
                 <>
                   No relatives connected yet. Click <strong className="text-slate-800 dark:text-slate-200">Add Relative</strong> above to link
                   parents, spouses, children, siblings, or cousins.
@@ -343,56 +477,56 @@ export function MemberDetailsPanel({
               <RelationGroup
                 title="Parents"
                 items={derived.parents}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Spouses"
                 items={derived.spouses}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Children"
                 items={derived.children}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Siblings"
                 items={derived.siblings}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Cousins"
                 items={derived.cousins}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Grandparents"
                 items={derived.grandparents}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Grandchildren"
                 items={derived.grandchildren}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
               <RelationGroup
                 title="Other Connections"
                 items={derived.others}
-                canEdit={canEdit}
+                canEdit={effectiveCanEdit}
                 onSelect={onSelectMember}
                 onUnlink={onDeleteRelationship}
               />
@@ -406,7 +540,7 @@ export function MemberDetailsPanel({
         <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
           Updated {new Date(member.updatedAt).toLocaleDateString()}
         </span>
-        {canEdit && (
+        {effectiveCanEdit && (
           <button
             type="button"
             onClick={() => onDelete(member)}

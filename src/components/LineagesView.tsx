@@ -1,28 +1,50 @@
 import React, { useMemo, useState } from 'react';
 import {
   Check,
+  Clock,
   FolderPlus,
   GitFork,
+  GitMerge,
   Import,
   LogOut,
   Mail,
   Pencil,
   Share2,
+  ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
 import { SEED_FAMILY_TREES } from '../data/seedFamilyTrees';
-import type { FamilyTreeRecord, TreeInvite, TreeMembership } from '../types/family';
+import { formatTreeLinkRelationship } from './ConnectTreesModal';
+import type {
+  FamilyTreeRecord,
+  ShareRole,
+  TreeConnection,
+  TreeInvite,
+  TreeLinkRequest,
+  TreeMembership,
+} from '../types/family';
 
 interface LineagesViewProps {
   trees: FamilyTreeRecord[];
   activeTreeId: string;
   isCloudMode: boolean;
+  currentUserId: string;
   incomingInvites: TreeInvite[];
   ownedTreeCollaborators: TreeMembership[];
   ownedTreeInvites: TreeInvite[];
+  incomingLinkRequests: TreeLinkRequest[];
+  outgoingLinkRequests: TreeLinkRequest[];
+  treeConnections: TreeConnection[];
   onSelectTree: (treeId: string) => void;
   onShareTree: (treeId: string) => void;
+  onOpenConnectModal: () => void;
+  onReviewLinkRequest: (request: TreeLinkRequest) => void;
+  onDeclineLinkRequest: (requestId: string) => Promise<void>;
+  onCancelLinkRequest: (requestId: string) => Promise<void>;
+  onUpdateConnectionPermission: (connection: TreeConnection, role: ShareRole) => Promise<void>;
+  onDisconnectTrees: (connection: TreeConnection) => Promise<void>;
+  onOpenCombinedTree: (treeId: string) => void;
   onCreateTree: (name: string, description: string) => Promise<string>;
   onRenameTree: (treeId: string, name: string, description: string) => Promise<void>;
   onDeleteTree: (treeId: string) => Promise<void>;
@@ -36,11 +58,22 @@ export function LineagesView({
   trees,
   activeTreeId,
   isCloudMode,
+  currentUserId,
   incomingInvites,
   ownedTreeCollaborators,
   ownedTreeInvites,
+  incomingLinkRequests,
+  outgoingLinkRequests,
+  treeConnections,
   onSelectTree,
   onShareTree,
+  onOpenConnectModal,
+  onReviewLinkRequest,
+  onDeclineLinkRequest,
+  onCancelLinkRequest,
+  onUpdateConnectionPermission,
+  onDisconnectTrees,
+  onOpenCombinedTree,
   onCreateTree,
   onRenameTree,
   onDeleteTree,
@@ -54,7 +87,9 @@ export function LineagesView({
   const [creating, setCreating] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  const [busyConnId, setBusyConnId] = useState<string | null>(null);
   const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -103,6 +138,79 @@ export function LineagesView({
             lineages shared with you.
           </p>
         </div>
+
+        {/* Incoming Tree Connection Requests (Mutual Consent) */}
+        {incomingLinkRequests.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <GitMerge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              Tree Connection Requests ({incomingLinkRequests.length})
+            </h2>
+
+            <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/70 rounded-2xl overflow-hidden">
+              {incomingLinkRequests.map((req) => {
+                const isBusy = busyConnId === req.id;
+                const relLabel = formatTreeLinkRelationship(
+                  req.relationshipType,
+                  req.relationshipDirection,
+                  req.customLabel,
+                  'source_to_target'
+                );
+                return (
+                  <div
+                    key={req.id}
+                    className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <h3 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100">
+                        {req.sourceOwnerName} wants to connect “{req.sourceTreeName}”
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Linking <strong className="text-slate-800 dark:text-slate-200">{req.sourceMemberName}</strong>{' '}
+                        ({relLabel}) · Grants you{' '}
+                        <strong className="text-slate-800 dark:text-slate-200">
+                          {req.sourceGrantsRole === 'editor' ? 'Can view & edit' : 'View only'}
+                        </strong>
+                      </p>
+                      {req.note && (
+                        <p className="text-xs italic text-slate-500 dark:text-slate-400">
+                          “{req.note}”
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => onReviewLinkRequest(req)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50 whitespace-nowrap"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                        Review & Connect
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={async () => {
+                          setBusyConnId(req.id);
+                          try {
+                            await onDeclineLinkRequest(req.id);
+                          } finally {
+                            setBusyConnId(null);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                      >
+                        <X className="w-3.5 h-3.5" aria-hidden="true" />
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Pending Invitations Received */}
         {incomingInvites.length > 0 && (
@@ -362,6 +470,206 @@ export function LineagesView({
           </div>
         </section>
 
+        {/* Connected Family Trees & Consent (Cross-User Links) */}
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+                Connected Family Trees & Consent ({treeConnections.length})
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Link two or more separate family trees (e.g., yours & your spouse’s) with mutual
+                View or Edit consent.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenConnectModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap"
+            >
+              <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+              Connect Two Trees
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+            {treeConnections.length === 0 && outgoingLinkRequests.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                No family trees are connected across accounts yet. Click{' '}
+                <strong className="text-slate-800 dark:text-slate-200">Connect Two Trees</strong> to
+                link your family tree with your spouse’s or another relative’s tree.
+              </div>
+            ) : (
+              <>
+                {treeConnections.map((conn) => {
+                  const isSource = conn.sourceOwnerId === currentUserId;
+                  const myTreeId = isSource ? conn.sourceTreeId : conn.targetTreeId;
+                  const myTreeName = isSource ? conn.sourceTreeName : conn.targetTreeName;
+                  const otherTreeName = isSource ? conn.targetTreeName : conn.sourceTreeName;
+                  const otherOwnerName = isSource ? conn.targetOwnerName : conn.sourceOwnerName;
+                  const myRoleGranted = isSource ? conn.sourceGrantsRole : conn.targetGrantsRole;
+                  const theirRoleGranted = isSource ? conn.targetGrantsRole : conn.sourceGrantsRole;
+                  const isBusy = busyConnId === conn.id;
+                  const isDisconnecting = confirmDisconnectId === conn.id;
+
+                  return (
+                    <div
+                      key={conn.id}
+                      className="p-5 flex flex-col gap-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <h3 className="font-display text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
+                            {conn.sourceMemberName} ({conn.sourceTreeName}) ↔{' '}
+                            {conn.targetMemberName} ({conn.targetTreeName})
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Relationship:{' '}
+                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                              {formatTreeLinkRelationship(
+                                conn.relationshipType,
+                                conn.relationshipDirection,
+                                conn.customLabel
+                              )}
+                            </span>{' '}
+                            · Connected with{' '}
+                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                              {otherOwnerName}
+                            </span>{' '}
+                            · Your access to “{otherTreeName}”:{' '}
+                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                              {theirRoleGranted === 'editor' ? 'Can view & edit' : 'View only'}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {isDisconnecting ? (
+                            <>
+                              <span className="text-xs text-rose-700 dark:text-rose-400 font-medium">
+                                Disconnect & revoke?
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={async () => {
+                                  setBusyConnId(conn.id);
+                                  try {
+                                    await onDisconnectTrees(conn);
+                                    setConfirmDisconnectId(null);
+                                  } finally {
+                                    setBusyConnId(null);
+                                  }
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 disabled:opacity-50"
+                              >
+                                Disconnect
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDisconnectId(null)}
+                                className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => onOpenCombinedTree(myTreeId)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap"
+                              >
+                                <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+                                Combined View
+                              </button>
+                              <button
+                                type="button"
+                                title="Disconnect family trees"
+                                aria-label={`Disconnect ${conn.sourceTreeName} and ${conn.targetTreeName}`}
+                                onClick={() => setConfirmDisconnectId(conn.id)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <span>
+                          Your consent for {otherOwnerName} on “{myTreeName}”:
+                        </span>
+                        <select
+                          disabled={isBusy}
+                          value={myRoleGranted}
+                          onChange={async (e) => {
+                            setBusyConnId(conn.id);
+                            try {
+                              await onUpdateConnectionPermission(conn, e.target.value as ShareRole);
+                            } finally {
+                              setBusyConnId(null);
+                            }
+                          }}
+                          className="px-2.5 py-1 text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100"
+                        >
+                          <option value="viewer">View only</option>
+                          <option value="editor">Can view & edit</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {outgoingLinkRequests.map((req) => {
+                  const isBusy = busyConnId === req.id;
+                  return (
+                    <div
+                      key={req.id}
+                      className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-950/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+                          <span className="truncate">
+                            Pending: {req.sourceMemberName} ({req.sourceTreeName}) → {req.targetEmail}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {formatTreeLinkRelationship(
+                            req.relationshipType,
+                            req.relationshipDirection,
+                            req.customLabel
+                          )}{' '}
+                          · Waiting for their approval & consent (you offered{' '}
+                          {req.sourceGrantsRole === 'editor' ? 'Can view & edit' : 'View only'})
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={async () => {
+                          setBusyConnId(req.id);
+                          try {
+                            await onCancelLinkRequest(req.id);
+                          } finally {
+                            setBusyConnId(null);
+                          }
+                        }}
+                        className="self-start sm:self-auto px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors disabled:opacity-50"
+                      >
+                        Cancel Request
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        </section>
+
         {/* Shared With Me */}
         {isCloudMode && (
           <section className="space-y-3">
@@ -370,7 +678,7 @@ export function LineagesView({
                 Shared With Me ({sharedTrees.length})
               </h2>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                Trees other family members invited you to
+                Trees other family members invited you to or connected with you
               </span>
             </div>
 

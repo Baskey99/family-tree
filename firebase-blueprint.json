@@ -94,6 +94,102 @@
       },
       "required": ["treeId", "ownerId", "fullName", "gender", "dateOfBirth", "manualAge", "address", "photoUrl", "notes", "createdAt", "updatedAt"]
     },
+    "TreeLinkRequest": {
+      "title": "TreeLinkRequest",
+      "description": "Pending cross-user family tree connection request requiring explicit recipient consent for view or edit access.",
+      "type": "object",
+      "properties": {
+        "sourceTreeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceTreeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sourceOwnerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceOwnerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "sourceOwnerEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "sourceMemberId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceMemberName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "sourceGrantsRole": { "type": "string", "enum": ["viewer", "editor"] },
+        "targetEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "relationshipType": { "type": "string", "enum": ["parent_child", "spouse", "sibling", "cousin", "other"] },
+        "relationshipDirection": { "type": "string", "enum": ["mutual", "source_is_parent", "target_is_parent"] },
+        "customLabel": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "note": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "sourceTreeId",
+        "sourceTreeName",
+        "sourceOwnerId",
+        "sourceOwnerName",
+        "sourceOwnerEmail",
+        "sourceMemberId",
+        "sourceMemberName",
+        "sourceGrantsRole",
+        "targetEmail",
+        "relationshipType",
+        "relationshipDirection",
+        "customLabel",
+        "note",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TreeConnection": {
+      "title": "TreeConnection",
+      "description": "Mutually consented bridge linking two members across two different users' family trees with independent view/edit roles.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceTreeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceTreeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sourceOwnerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceOwnerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "sourceOwnerEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "sourceMemberId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceMemberName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "sourceGrantsRole": { "type": "string", "enum": ["viewer", "editor"] },
+        "targetTreeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetTreeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "targetOwnerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetOwnerName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "targetOwnerEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "targetMemberId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetMemberName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "targetGrantsRole": { "type": "string", "enum": ["viewer", "editor"] },
+        "participantIds": { "type": "array", "description": "Bounded 2-element list [sourceOwnerId, targetOwnerId] for secure participant queries." },
+        "relationshipType": { "type": "string", "enum": ["parent_child", "spouse", "sibling", "cousin", "other"] },
+        "relationshipDirection": { "type": "string", "enum": ["mutual", "source_is_parent", "target_is_parent"] },
+        "customLabel": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "requestId",
+        "sourceTreeId",
+        "sourceTreeName",
+        "sourceOwnerId",
+        "sourceOwnerName",
+        "sourceOwnerEmail",
+        "sourceMemberId",
+        "sourceMemberName",
+        "sourceGrantsRole",
+        "targetTreeId",
+        "targetTreeName",
+        "targetOwnerId",
+        "targetOwnerName",
+        "targetOwnerEmail",
+        "targetMemberId",
+        "targetMemberName",
+        "targetGrantsRole",
+        "participantIds",
+        "relationshipType",
+        "relationshipDirection",
+        "customLabel",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
     "FamilyRelationship": {
       "title": "FamilyRelationship",
       "description": "A relationship edge connecting two members within a family tree.",
@@ -126,6 +222,14 @@
     "/tree_memberships/{membershipId}": {
       "schema": { "$ref": "#/entities/TreeMembership" },
       "description": "Active viewer/editor memberships enforcing family-only access isolation."
+    },
+    "/tree_link_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/TreeLinkRequest" },
+      "description": "Cross-user tree connection consent requests readable only by sender and recipient."
+    },
+    "/tree_connections/{connectionId}": {
+      "schema": { "$ref": "#/entities/TreeConnection" },
+      "description": "Active mutually consented bridges connecting members across separate users' family trees."
     },
     "/family_trees/{treeId}": {
       "schema": { "$ref": "#/entities/FamilyTree" },

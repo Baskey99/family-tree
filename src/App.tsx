@@ -6,6 +6,7 @@ import {
   Cloud,
   FolderTree,
   GitFork,
+  GitMerge,
   Loader2,
   LogIn,
   LogOut,
@@ -13,6 +14,7 @@ import {
   Moon,
   Search,
   Share2,
+  ShieldCheck,
   Sun,
   UserPlus,
   Users,
@@ -27,6 +29,7 @@ import {
   FamilyTreeCanvas,
   type FamilyTreeCanvasHandle,
 } from './components/FamilyTreeCanvas';
+import type { LinkedTreeBadgeInfo } from './components/MemberCard';
 import { MemberDetailsPanel } from './components/MemberDetailsPanel';
 import { MemberFormModal } from './components/MemberFormModal';
 import { DeleteMemberModal } from './components/DeleteMemberModal';
@@ -35,7 +38,11 @@ import { LineagesView } from './components/LineagesView';
 import { GenderIndicator } from './components/GenderBadge';
 import { AuthModal, type AuthModalMode } from './components/AuthModal';
 import { ShareTreeModal } from './components/ShareTreeModal';
-import type { FamilyMember } from './types/family';
+import {
+  ConnectTreesModal,
+  formatTreeLinkRelationship,
+} from './components/ConnectTreesModal';
+import type { FamilyMember, TreeLinkRequest } from './types/family';
 
 type PageTab = 'tree' | 'directory' | 'lineages';
 
@@ -72,6 +79,17 @@ export default function App() {
     mode: 'login',
   });
   const [shareModalTreeId, setShareModalTreeId] = useState<string | null>(null);
+  const [connectModal, setConnectModal] = useState<{
+    open: boolean;
+    mode: 'send' | 'review';
+    defaultMemberId: string | null;
+    reviewRequest: TreeLinkRequest | null;
+  }>({
+    open: false,
+    mode: 'send',
+    defaultMemberId: null,
+    reviewRequest: null,
+  });
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
   const [localToast, setLocalToast] = useState<{ text: string; isError?: boolean } | null>(null);
 
@@ -108,34 +126,83 @@ export default function App() {
     [store]
   );
 
-  // Memoized hierarchical layout calculation
+  const pendingBadgeCount = store.incomingInvites.length + store.incomingLinkRequests.length;
+
+  // Map active-tree member IDs -> connected tree info (for subtle link indicators in single-tree view)
+  const linkedTreesByMemberId = useMemo(() => {
+    const map = new Map<string, LinkedTreeBadgeInfo>();
+    if (!store.activeTreeId) return map;
+    for (const conn of store.activeTreeConnections) {
+      if (conn.sourceTreeId === store.activeTreeId) {
+        if (!map.has(conn.sourceMemberId)) {
+          map.set(conn.sourceMemberId, {
+            treeId: conn.targetTreeId,
+            treeName: conn.targetTreeName,
+            relationLabel: formatTreeLinkRelationship(
+              conn.relationshipType,
+              conn.relationshipDirection,
+              conn.customLabel,
+              'source_to_target'
+            ),
+          });
+        }
+      } else if (conn.targetTreeId === store.activeTreeId) {
+        if (!map.has(conn.targetMemberId)) {
+          map.set(conn.targetMemberId, {
+            treeId: conn.sourceTreeId,
+            treeName: conn.sourceTreeName,
+            relationLabel: formatTreeLinkRelationship(
+              conn.relationshipType,
+              conn.relationshipDirection,
+              conn.customLabel,
+              'target_to_source'
+            ),
+          });
+        }
+      }
+    }
+    return map;
+  }, [store.activeTreeId, store.activeTreeConnections]);
+
+  // Memoized hierarchical layout calculation (uses combined members & bridge links when Combined View is active)
   const layout = useMemo(
     () =>
       computeFamilyTreeLayout(
-        store.members,
-        store.relationships,
+        store.displayMembers,
+        store.displayRelationships,
         collapsedMemberIds
       ),
-    [store.members, store.relationships, collapsedMemberIds]
+    [store.displayMembers, store.displayRelationships, collapsedMemberIds]
   );
 
   const selectedMember = useMemo(
-    () => store.members.find((m) => m.id === selectedMemberId) || null,
-    [store.members, selectedMemberId]
+    () => store.displayMembers.find((m) => m.id === selectedMemberId) || null,
+    [store.displayMembers, selectedMemberId]
   );
+
+  const selectedMemberConnections = useMemo(() => {
+    if (!selectedMember) return [];
+    const rawId = selectedMember.originalMemberId || selectedMember.id;
+    return store.treeConnections.filter(
+      (c) =>
+        (c.sourceTreeId === selectedMember.treeId && c.sourceMemberId === rawId) ||
+        (c.targetTreeId === selectedMember.treeId && c.targetMemberId === rawId)
+    );
+  }, [selectedMember, store.treeConnections]);
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return store.members
+    return store.displayMembers
       .filter(
         (m) =>
           m.fullName.toLowerCase().includes(q) ||
           m.address.toLowerCase().includes(q) ||
-          m.notes.toLowerCase().includes(q)
+          m.notes.toLowerCase().includes(q) ||
+          (m.originTreeName && m.originTreeName.toLowerCase().includes(q))
       )
       .slice(0, 10);
-  }, [store.members, searchQuery]);
+  }, [store.displayMembers, searchQuery]);
 
   const focusAndHighlightMember = useCallback((memberId: string, openInspector = false) => {
     setActiveTab('tree');
@@ -172,27 +239,31 @@ export default function App() {
         showToast('You have view-only access to this shared family tree.', true);
         return;
       }
+      // If a connected external-tree member is currently selected in Combined View, don't pass its namespaced ID
+      const safeRelatedId =
+        relatedId && store.members.some((m) => m.id === relatedId) ? relatedId : null;
       setFormModal({
         open: true,
         mode: 'add',
         editingMember: null,
-        defaultRelatedMemberId: relatedId,
+        defaultRelatedMemberId: safeRelatedId,
       });
     },
-    [store.canEditActiveTree, showToast]
+    [store.canEditActiveTree, store.members, showToast]
   );
 
   const handleOpenEditModal = useCallback(
     (memberOrId: FamilyMember | string) => {
+      const id = typeof memberOrId === 'string' ? memberOrId : memberOrId.id;
+      const member = store.members.find((m) => m.id === id) || null;
+      if (!member) {
+        showToast('Open that connected family tree directly to edit its members.', true);
+        return;
+      }
       if (!store.canEditActiveTree) {
         showToast('You have view-only access to this shared family tree.', true);
         return;
       }
-      const member =
-        typeof memberOrId === 'string'
-          ? store.members.find((m) => m.id === memberOrId) || null
-          : memberOrId;
-      if (!member) return;
       setFormModal({
         open: true,
         mode: 'edit',
@@ -205,22 +276,27 @@ export default function App() {
 
   const handleRequestDelete = useCallback(
     (memberOrId: FamilyMember | string) => {
+      const id = typeof memberOrId === 'string' ? memberOrId : memberOrId.id;
+      const member = store.members.find((m) => m.id === id) || null;
+      if (!member) {
+        showToast('Open that connected family tree directly to remove its members.', true);
+        return;
+      }
       if (!store.canEditActiveTree) {
         showToast('You have view-only access to this shared family tree.', true);
         return;
       }
-      const member =
-        typeof memberOrId === 'string'
-          ? store.members.find((m) => m.id === memberOrId) || null
-          : memberOrId;
-      if (member) setDeletingMember(member);
+      setDeletingMember(member);
     },
     [store.canEditActiveTree, store.members, showToast]
   );
 
   const handleSwitchTree = useCallback(
-    (treeId: string) => {
+    (treeId: string, enableCombined?: boolean) => {
       store.selectTree(treeId);
+      if (enableCombined !== undefined) {
+        store.setCombinedViewEnabled(enableCombined);
+      }
       setSelectedMemberId(null);
       setDetailsOpen(false);
       setCollapsedMemberIds(new Set());
@@ -229,6 +305,24 @@ export default function App() {
     },
     [store]
   );
+
+  const handleOpenConnectModal = useCallback((defaultMemberId: string | null = null) => {
+    setConnectModal({
+      open: true,
+      mode: 'send',
+      defaultMemberId,
+      reviewRequest: null,
+    });
+  }, []);
+
+  const handleReviewLinkRequest = useCallback((req: TreeLinkRequest) => {
+    setConnectModal({
+      open: true,
+      mode: 'review',
+      defaultMemberId: null,
+      reviewRequest: req,
+    });
+  }, []);
 
   const feedbackBanner = localToast
     ? localToast
@@ -263,8 +357,8 @@ export default function App() {
               {
                 id: 'lineages',
                 label:
-                  store.incomingInvites.length > 0
-                    ? `Lineages (${store.incomingInvites.length})`
+                  pendingBadgeCount > 0
+                    ? `Lineages (${pendingBadgeCount})`
                     : 'Lineages',
               },
             ] as const
@@ -435,6 +529,65 @@ export default function App() {
         </div>
       )}
 
+      {/* Incoming Cross-Tree Connection Requests Banner */}
+      {store.incomingLinkRequests.length > 0 && (
+        <div className="bg-emerald-50/90 dark:bg-emerald-950/50 border-b border-emerald-200/80 dark:border-emerald-900/70 px-4 sm:px-6 py-2.5 shrink-0 z-20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-xs text-slate-800 dark:text-slate-200 min-w-0">
+              <GitMerge className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+              <p className="truncate">
+                <span className="font-semibold">
+                  {store.incomingLinkRequests[0].sourceOwnerName}
+                </span>{' '}
+                wants to connect{' '}
+                <span className="font-semibold">
+                  "{store.incomingLinkRequests[0].sourceTreeName}"
+                </span>{' '}
+                ({store.incomingLinkRequests[0].sourceMemberName} ·{' '}
+                {formatTreeLinkRelationship(
+                  store.incomingLinkRequests[0].relationshipType,
+                  store.incomingLinkRequests[0].relationshipDirection,
+                  store.incomingLinkRequests[0].customLabel
+                )}
+                ) with your tree
+                {store.incomingLinkRequests.length > 1 && (
+                  <span className="text-slate-600 dark:text-slate-400">
+                    {' '}
+                    · +{store.incomingLinkRequests.length - 1} more
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleReviewLinkRequest(store.incomingLinkRequests[0])}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                Review & Connect
+              </button>
+              <button
+                type="button"
+                disabled={busyInviteId === store.incomingLinkRequests[0].id}
+                onClick={async () => {
+                  const req = store.incomingLinkRequests[0];
+                  setBusyInviteId(req.id);
+                  try {
+                    await store.declineTreeLinkRequest(req.id);
+                  } finally {
+                    setBusyInviteId(null);
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Page Router */}
       {activeTab === 'tree' && (
         <div className="flex-1 flex flex-col min-h-0">
@@ -505,6 +658,46 @@ export default function App() {
                       </span>
                     </button>
                   )}
+
+                  {store.activeTree && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenConnectModal(null)}
+                      title="Connect this tree with another user's family tree"
+                      className="inline-flex items-center gap-1.5 px-3 md:px-2.5 py-2 md:py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span className="hidden sm:inline">Connect Tree</span>
+                      <span className="sm:hidden">Connect</span>
+                    </button>
+                  )}
+
+                  {store.connectedTreeCount > 0 && (
+                    <button
+                      type="button"
+                      aria-pressed={store.combinedViewActive}
+                      onClick={() => {
+                        store.setCombinedViewEnabled(!store.combinedViewEnabled);
+                        setSelectedMemberId(null);
+                        setDetailsOpen(false);
+                      }}
+                      title={
+                        store.combinedViewActive
+                          ? 'Showing combined connected family trees — click to view only active tree'
+                          : 'View this tree combined with connected family trees'
+                      }
+                      className={`inline-flex items-center gap-1.5 px-3 md:px-2.5 py-2 md:py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+                        store.combinedViewActive
+                          ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100'
+                          : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/60'
+                      }`}
+                    >
+                      <GitMerge className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>
+                        Combined (+{store.connectedTreeCount})
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -518,7 +711,10 @@ export default function App() {
 
               {/* Unboxed quiet metadata */}
               <div className="hidden xl:flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span className="font-mono tabular-nums">{store.members.length} members</span>
+                <span className="font-mono tabular-nums">
+                  {store.displayMembers.length} members
+                  {store.combinedViewActive ? ` (${store.connectedTreeCount + 1} trees)` : ''}
+                </span>
                 <span aria-hidden="true">·</span>
                 <span className="font-mono tabular-nums">
                   {layout.generations.length} generations
@@ -642,7 +838,14 @@ export default function App() {
             ) : (
               <FamilyTreeCanvas
                 ref={canvasRef}
-                treeName={store.activeTree?.name || 'Family Tree'}
+                treeName={
+                  store.combinedViewActive
+                    ? `${store.activeTree?.name || 'Family Tree'} (Combined)`
+                    : store.activeTree?.name || 'Family Tree'
+                }
+                activeTreeId={store.activeTreeId}
+                isCombinedView={store.combinedViewActive}
+                linkedTreesByMemberId={linkedTreesByMemberId}
                 canEdit={store.canEditActiveTree}
                 isDark={isDark}
                 layout={layout}
@@ -661,6 +864,7 @@ export default function App() {
                 onAddRelative={(id) => handleOpenAddModal(id)}
                 onDeleteMember={(id) => handleRequestDelete(id)}
                 onToggleCollapse={handleToggleCollapse}
+                onOpenLinkedTree={(treeId) => handleSwitchTree(treeId, false)}
                 onExpandAll={() => setCollapsedMemberIds(new Set())}
                 onResetLayout={() => {
                   setCollapsedMemberIds(new Set());
@@ -675,16 +879,27 @@ export default function App() {
             {detailsOpen && selectedMember && (
               <MemberDetailsPanel
                 member={selectedMember}
-                members={store.members}
-                relationships={store.relationships}
+                members={store.displayMembers}
+                relationships={store.displayRelationships}
                 generation={layout.memberGenerationMap.get(selectedMember.id)}
+                activeTreeId={store.activeTreeId}
+                isOwnerOfActiveTree={store.isOwnerOfActiveTree}
+                isCombinedView={store.combinedViewActive}
+                memberConnections={selectedMemberConnections}
                 canEdit={store.canEditActiveTree}
                 onClose={() => setDetailsOpen(false)}
                 onSelectMember={(id) => focusAndHighlightMember(id, true)}
                 onEdit={(m) => handleOpenEditModal(m)}
                 onAddRelative={(m) => handleOpenAddModal(m.id)}
                 onDelete={(m) => handleRequestDelete(m)}
-                onDeleteRelationship={(relId) => void store.deleteRelationship(relId)}
+                onDeleteRelationship={(relId) => {
+                  if (relId.startsWith('bridge_') || relId.includes('::')) return;
+                  void store.deleteRelationship(relId);
+                }}
+                onOpenConnectModal={(memberId) => handleOpenConnectModal(memberId)}
+                onJumpToConnectedTree={(treeId, openCombined) =>
+                  handleSwitchTree(treeId, openCombined)
+                }
               />
             )}
           </div>
@@ -710,11 +925,22 @@ export default function App() {
           trees={store.trees}
           activeTreeId={store.activeTreeId}
           isCloudMode={store.isCloudMode}
+          currentUserId={store.user?.uid || ''}
           incomingInvites={store.incomingInvites}
           ownedTreeCollaborators={store.ownedTreeCollaborators}
           ownedTreeInvites={store.ownedTreeInvites}
-          onSelectTree={handleSwitchTree}
+          incomingLinkRequests={store.incomingLinkRequests}
+          outgoingLinkRequests={store.outgoingLinkRequests}
+          treeConnections={store.treeConnections}
+          onSelectTree={(treeId) => handleSwitchTree(treeId)}
           onShareTree={(treeId) => setShareModalTreeId(treeId)}
+          onOpenConnectModal={() => handleOpenConnectModal(null)}
+          onReviewLinkRequest={handleReviewLinkRequest}
+          onDeclineLinkRequest={store.declineTreeLinkRequest}
+          onCancelLinkRequest={store.cancelTreeLinkRequest}
+          onUpdateConnectionPermission={store.updateConnectionPermission}
+          onDisconnectTrees={store.disconnectTrees}
+          onOpenCombinedTree={(treeId) => handleSwitchTree(treeId, true)}
           onCreateTree={async (name, desc) => {
             const id = await store.createTree(name, desc);
             setActiveTab('tree');
@@ -751,7 +977,7 @@ export default function App() {
           ).map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
-            const showInviteCount = item.id === 'lineages' && store.incomingInvites.length > 0;
+            const showInviteCount = item.id === 'lineages' && pendingBadgeCount > 0;
             return (
               <button
                 key={item.id}
@@ -777,7 +1003,7 @@ export default function App() {
                 </span>
                 <span>
                   {showInviteCount
-                    ? `${item.label} (${store.incomingInvites.length})`
+                    ? `${item.label} (${pendingBadgeCount})`
                     : item.label}
                 </span>
               </button>
@@ -870,6 +1096,34 @@ export default function App() {
         onRevokeCollaborator={store.revokeCollaborator}
         onUpdateInviteRole={store.updateInviteRole}
         onCancelInvite={store.cancelInvite}
+      />
+
+      {/* Connect Two Family Trees Modal (Mutual Consent) */}
+      <ConnectTreesModal
+        open={connectModal.open}
+        mode={connectModal.mode}
+        reviewRequest={connectModal.reviewRequest}
+        ownedTrees={ownedTrees}
+        defaultTreeId={store.activeTreeId}
+        defaultMemberId={connectModal.defaultMemberId}
+        isCloudMode={store.isCloudMode}
+        currentUserId={store.user?.uid || ''}
+        treeConnections={store.treeConnections}
+        outgoingLinkRequests={store.outgoingLinkRequests}
+        onClose={() => setConnectModal((prev) => ({ ...prev, open: false }))}
+        onOpenAuth={() => setAuthModal({ open: true, mode: 'login' })}
+        onGoogleSignIn={store.signIn}
+        onFetchMembersForTree={store.fetchMembersForTree}
+        onSendRequest={store.sendTreeLinkRequest}
+        onAcceptRequest={async (params) => {
+          await store.acceptTreeLinkRequest(params);
+          setActiveTab('tree');
+        }}
+        onDeclineRequest={store.declineTreeLinkRequest}
+        onCancelRequest={store.cancelTreeLinkRequest}
+        onUpdatePermission={store.updateConnectionPermission}
+        onDisconnect={store.disconnectTrees}
+        onOpenCombinedView={(treeId) => handleSwitchTree(treeId, true)}
       />
 
       {/* Login, Register & Forgot Password Modal */}

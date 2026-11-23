@@ -11,7 +11,8 @@ export type RateLimitAction =
   | 'register'
   | 'reset_password'
   | 'google_auth'
-  | 'invite';
+  | 'invite'
+  | 'tree_link';
 
 interface RateLimitConfig {
   maxAttempts: number;
@@ -64,6 +65,13 @@ const RATE_LIMIT_CONFIGS: Record<RateLimitAction, RateLimitConfig> = {
     baseCooldownMs: 2 * 60 * 1000,
     maxCooldownMs: 10 * 60 * 1000,
     label: 'invitation requests',
+  },
+  tree_link: {
+    maxAttempts: 10,
+    windowMs: 10 * 60 * 1000,
+    baseCooldownMs: 2 * 60 * 1000,
+    maxCooldownMs: 10 * 60 * 1000,
+    label: 'tree connection requests',
   },
 };
 
