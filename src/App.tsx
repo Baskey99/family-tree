@@ -310,8 +310,16 @@ export default function App() {
 
           {store.authReady &&
             (store.user ? (
-              <div className="flex items-center gap-1.5 pr-1">
-                <span className="hidden md:inline text-xs text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
+              <div className="flex items-center gap-2 pr-0.5">
+                {store.user.photoURL && (
+                  <img
+                    src={store.user.photoURL}
+                    alt={store.user.displayName || 'Account avatar'}
+                    referrerPolicy="no-referrer"
+                    className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+                  />
+                )}
+                <span className="hidden md:inline text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[140px]">
                   {store.user.displayName || store.user.email}
                 </span>
                 <button
@@ -855,6 +863,7 @@ export default function App() {
         }
         onClose={() => setShareModalTreeId(null)}
         onOpenAuth={() => setAuthModal({ open: true, mode: 'login' })}
+        onGoogleSignIn={store.signIn}
         onInviteMember={store.inviteFamilyMember}
         onUpdateCollaboratorRole={store.updateCollaboratorRole}
         onRevokeCollaborator={store.revokeCollaborator}

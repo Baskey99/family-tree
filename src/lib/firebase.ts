@@ -17,6 +17,7 @@ import {
   getFirestore,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 
 // User's configured Firebase project (family-tree-8b9de)
@@ -34,6 +35,8 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
@@ -100,14 +103,30 @@ export function normalizeUsernameKey(raw: string): string {
     .slice(0, 40);
 }
 
-export function formatFirebaseAuthError(error: unknown): string {
-  const code =
-    error && typeof error === 'object' && 'code' in error
-      ? String((error as { code?: string }).code || '')
-      : '';
+export class AuthFlowError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'AuthFlowError';
+    this.code = code;
+  }
+}
+
+export function getAuthErrorCode(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error) {
+    return String((error as { code?: string }).code || '');
+  }
+  return '';
+}
+
+export function formatFirebaseAuthError(error: unknown, email?: string): string {
+  const code = getAuthErrorCode(error);
   switch (code) {
     case 'auth/email-already-in-use':
-      return 'An account with this email already exists. Try signing in instead.';
+      return email
+        ? `An account with "${email}" is already registered. Please sign in or reset your password instead.`
+        : 'This email address is already registered. Please sign in instead.';
     case 'auth/invalid-email':
       return 'Please enter a valid email address.';
     case 'auth/weak-password':
@@ -119,9 +138,19 @@ export function formatFirebaseAuthError(error: unknown): string {
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please wait a moment and try again.';
     case 'auth/operation-not-allowed':
-      return 'Email/Password sign-in is not enabled yet in Firebase Console (Authentication → Sign-in method → Email/Password).';
+      return 'This sign-in method is not enabled yet in Firebase Console (Authentication → Sign-in method → enable Google and Email/Password).';
     case 'auth/popup-closed-by-user':
-      return 'Sign-in popup was closed before completing.';
+      return 'Google sign-in window was closed before completing.';
+    case 'auth/popup-blocked':
+      return 'Sign-in popup was blocked by your browser. Please allow popups for this site and try again.';
+    case 'auth/cancelled-popup-request':
+      return 'Sign-in popup request was cancelled. Please try again.';
+    case 'auth/unauthorized-domain': {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+      return `Domain "${host}" is not authorized for Google Sign-In. Add "${host}" in Firebase Console → Authentication → Settings → Authorized domains.`;
+    }
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using a different sign-in method. Please sign in with your email and password.';
     case 'auth/missing-email':
       return 'Please enter your email address.';
     case 'auth/network-request-failed':
@@ -139,7 +168,8 @@ export async function registerWithEmailPassword(params: {
 }): Promise<User> {
   const cleanName = params.name.trim().slice(0, 100);
   const cleanEmail = params.email.trim().toLowerCase();
-  const chosenUsername = normalizeUsernameKey(
+  const hasExplicitUsername = Boolean(params.username?.trim());
+  let chosenUsername = normalizeUsernameKey(
     params.username?.trim() || cleanName || cleanEmail.split('@')[0]
   );
 
@@ -149,16 +179,32 @@ export async function registerWithEmailPassword(params: {
     throw new Error('Username must contain at least 2 letters or numbers.');
   }
 
-  // Check if chosen username is already claimed
+  let autoUsernameTaken = false;
+
+  // Check username lookup before creating Auth account so we surface duplicate emails
+  // or taken custom usernames cleanly without creating orphaned Auth records.
   try {
     const existingLookup = await getDoc(doc(db, 'usernames', chosenUsername));
     if (existingLookup.exists()) {
-      throw new Error(
-        `The username "${chosenUsername}" is already taken. Please choose another username.`
-      );
+      const existingEmail = String(existingLookup.data()?.email || '')
+        .trim()
+        .toLowerCase();
+      if (existingEmail && existingEmail === cleanEmail) {
+        throw new AuthFlowError(
+          'auth/email-already-in-use',
+          formatFirebaseAuthError({ code: 'auth/email-already-in-use' }, cleanEmail)
+        );
+      }
+      if (hasExplicitUsername) {
+        throw new AuthFlowError(
+          'auth/username-already-in-use',
+          `The username "${chosenUsername}" is already taken. Please choose another username.`
+        );
+      }
+      autoUsernameTaken = true;
     }
   } catch (err) {
-    if (err instanceof Error && err.message.includes('already taken')) {
+    if (err instanceof AuthFlowError) {
       throw err;
     }
     // If rules haven't been published yet or offline, let Auth creation proceed and handle below
@@ -170,7 +216,14 @@ export async function registerWithEmailPassword(params: {
     user = cred.user;
     await updateProfile(user, { displayName: cleanName });
   } catch (error) {
-    throw new Error(formatFirebaseAuthError(error));
+    const code = getAuthErrorCode(error) || 'auth/registration-failed';
+    throw new AuthFlowError(code, formatFirebaseAuthError(error, cleanEmail));
+  }
+
+  // If the auto-derived username collided with another user, assign a unique suffix
+  if (autoUsernameTaken) {
+    const uidSuffix = user.uid.slice(0, 5).toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    chosenUsername = `${chosenUsername.slice(0, 34)}_${uidSuffix}`;
   }
 
   // Persist user profile and username lookup index in Firestore
@@ -235,7 +288,8 @@ export async function loginWithUsernameOrEmail(
     const cred = await signInWithEmailAndPassword(auth, emailToSignIn, password);
     return cred.user;
   } catch (error) {
-    throw new Error(formatFirebaseAuthError(error));
+    const code = getAuthErrorCode(error) || 'auth/login-failed';
+    throw new AuthFlowError(code, formatFirebaseAuthError(error));
   }
 }
 
@@ -278,9 +332,80 @@ export async function sendPasswordResetForIdentifier(identifier: string): Promis
   }
 }
 
+/**
+ * Ensures a Google-authenticated user has a private /users/{uid} profile
+ * and a /usernames/{usernameKey} lookup record so family members can invite them
+ * by username as well as by email.
+ */
+async function ensureGoogleUserProfile(user: User): Promise<void> {
+  const cleanEmail = (user.email || '').trim().toLowerCase().slice(0, 254);
+  if (cleanEmail.length < 3) return;
+
+  const cleanName = (
+    user.displayName?.trim() ||
+    cleanEmail.split('@')[0] ||
+    'Family Member'
+  ).slice(0, 100);
+
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    const existingProfile = await getDoc(userRef);
+
+    if (existingProfile.exists()) {
+      const data = existingProfile.data();
+      if (data?.displayName !== cleanName) {
+        await updateDoc(userRef, {
+          displayName: cleanName,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      return;
+    }
+
+    // Derive an available username key (2–40 chars, lowercase a-z0-9_-)
+    const baseCandidate = normalizeUsernameKey(cleanName || cleanEmail.split('@')[0]);
+    const baseKey = baseCandidate.length >= 2 ? baseCandidate : `user_${user.uid.slice(0, 6).toLowerCase()}`;
+    const uidSuffix = user.uid.slice(0, 5).toLowerCase().replace(/[^a-z0-9]/g, 'x');
+    const fallbackKey = `${baseKey.slice(0, 34)}_${uidSuffix}`;
+
+    let chosenUsername = baseKey;
+    try {
+      const usernameSnap = await getDoc(doc(db, 'usernames', baseKey));
+      if (usernameSnap.exists() && usernameSnap.data()?.ownerId !== user.uid) {
+        chosenUsername = fallbackKey;
+      }
+    } catch {
+      chosenUsername = fallbackKey;
+    }
+
+    await setDoc(userRef, {
+      ownerId: user.uid,
+      displayName: cleanName,
+      username: chosenUsername,
+      email: cleanEmail,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const lookupRef = doc(db, 'usernames', chosenUsername);
+    const lookupSnap = await getDoc(lookupRef).catch(() => null);
+    if (!lookupSnap || !lookupSnap.exists()) {
+      await setDoc(lookupRef, {
+        ownerId: user.uid,
+        email: cleanEmail,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    // Do not block Google sign-in if profile sync is denied or offline
+    console.warn('Could not sync Google user profile to Firestore:', err);
+  }
+}
+
 export async function signInWithGoogle(): Promise<User> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    void ensureGoogleUserProfile(result.user);
     return result.user;
   } catch (error) {
     throw new Error(formatFirebaseAuthError(error));

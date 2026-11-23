@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Loader2,
   Lock,
   LogIn,
   Mail,
@@ -12,6 +13,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { GoogleIcon } from './GoogleIcon';
 import type {
   FamilyTreeRecord,
   ShareRole,
@@ -29,6 +31,7 @@ interface ShareTreeModalProps {
   pendingInvites: TreeInvite[];
   onClose: () => void;
   onOpenAuth: () => void;
+  onGoogleSignIn: () => Promise<void>;
   onInviteMember: (treeId: string, identifier: string, role: ShareRole) => Promise<void>;
   onUpdateCollaboratorRole: (membershipId: string, role: ShareRole) => Promise<void>;
   onRevokeCollaborator: (membershipId: string) => Promise<void>;
@@ -46,6 +49,7 @@ export function ShareTreeModal({
   pendingInvites,
   onClose,
   onOpenAuth,
+  onGoogleSignIn,
   onInviteMember,
   onUpdateCollaboratorRole,
   onRevokeCollaborator,
@@ -55,6 +59,7 @@ export function ShareTreeModal({
   const [identifier, setIdentifier] = useState('');
   const [role, setRole] = useState<ShareRole>('viewer');
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -155,17 +160,52 @@ export function ShareTreeModal({
                   relatives with View or Edit permissions.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenAuth();
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors"
-              >
-                <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
-                Login or Register
-              </button>
+              {error && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-xs text-rose-800 dark:text-rose-200 text-left"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={googleLoading}
+                  onClick={async () => {
+                    setError(null);
+                    setGoogleLoading(true);
+                    try {
+                      await onGoogleSignIn();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Google Sign-In failed.');
+                    } finally {
+                      setGoogleLoading(false);
+                    }
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {googleLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <GoogleIcon className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  {googleLoading ? 'Connecting...' : 'Continue with Google'}
+                </button>
+                <button
+                  type="button"
+                  disabled={googleLoading}
+                  onClick={() => {
+                    onClose();
+                    onOpenAuth();
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
+                >
+                  <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
+                  Login or Register
+                </button>
+              </div>
             </div>
           ) : !isOwner ? (
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-xs text-slate-600 dark:text-slate-400 space-y-1">

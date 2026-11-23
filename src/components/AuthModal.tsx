@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Loader2,
   Lock,
   LogIn,
   Mail,
@@ -13,7 +14,8 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { normalizeUsernameKey } from '../lib/firebase';
+import { getAuthErrorCode, normalizeUsernameKey } from '../lib/firebase';
+import { GoogleIcon } from './GoogleIcon';
 
 export type AuthModalMode = 'login' | 'register' | 'reset';
 
@@ -42,10 +44,14 @@ export function AuthModal({
   onGoogleSignIn,
 }: AuthModalProps) {
   const firstInputRef = useRef<HTMLInputElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const regEmailInputRef = useRef<HTMLInputElement | null>(null);
 
   const [mode, setMode] = useState<AuthModalMode>(initialMode);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [resetSentEmail, setResetSentEmail] = useState<string | null>(null);
 
   // Login fields
@@ -65,12 +71,22 @@ export function AuthModal({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const setAuthError = (message: string | null, code: string | null = null) => {
+    setError(message);
+    setErrorCode(code);
+    if (message) {
+      bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
     setError(null);
+    setErrorCode(null);
     setResetSentEmail(null);
     setSubmitting(false);
+    setGoogleSubmitting(false);
     setShowPassword(false);
     setShowConfirmPassword(false);
     window.setTimeout(() => firstInputRef.current?.focus(), 40);
@@ -91,13 +107,13 @@ export function AuthModal({
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setAuthError(null);
     if (!loginIdentifier.trim()) {
-      setError('Please enter your username or email.');
+      setAuthError('Please enter your username or email.');
       return;
     }
     if (!loginPassword) {
-      setError('Please enter your password.');
+      setAuthError('Please enter your password.');
       return;
     }
 
@@ -107,7 +123,10 @@ export function AuthModal({
       setLoginPassword('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed.');
+      setAuthError(
+        err instanceof Error ? err.message : 'Login failed.',
+        getAuthErrorCode(err) || null
+      );
     } finally {
       setSubmitting(false);
     }
@@ -115,10 +134,10 @@ export function AuthModal({
 
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setAuthError(null);
     setResetSentEmail(null);
     if (!resetIdentifier.trim()) {
-      setError('Please enter your username or email address.');
+      setAuthError('Please enter your username or email address.');
       return;
     }
 
@@ -127,7 +146,10 @@ export function AuthModal({
       const sentTo = await onResetPassword(resetIdentifier);
       setResetSentEmail(sentTo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send password reset email.');
+      setAuthError(
+        err instanceof Error ? err.message : 'Could not send password reset email.',
+        getAuthErrorCode(err) || null
+      );
     } finally {
       setSubmitting(false);
     }
@@ -135,22 +157,23 @@ export function AuthModal({
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setAuthError(null);
 
     if (!regName.trim()) {
-      setError('Full Name is required.');
+      setAuthError('Full Name is required.');
       return;
     }
     if (!regEmail.trim() || !regEmail.includes('@')) {
-      setError('Please enter a valid email address.');
+      setAuthError('Please enter a valid email address.', 'auth/invalid-email');
+      regEmailInputRef.current?.focus();
       return;
     }
     if (regPassword.length < 6) {
-      setError('Password must be at least 6 characters long.');
+      setAuthError('Password must be at least 6 characters long.');
       return;
     }
     if (regPassword !== regConfirmPassword) {
-      setError('Password and Confirm Password do not match.');
+      setAuthError('Password and Confirm Password do not match.');
       return;
     }
 
@@ -166,24 +189,36 @@ export function AuthModal({
       setRegConfirmPassword('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed.');
+      const code = getAuthErrorCode(err) || null;
+      setAuthError(err instanceof Error ? err.message : 'Registration failed.', code);
+      if (code === 'auth/email-already-in-use' || code === 'auth/invalid-email') {
+        window.setTimeout(() => regEmailInputRef.current?.focus({ preventScroll: true }), 60);
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleGoogle = async () => {
-    setError(null);
-    setSubmitting(true);
+    setAuthError(null);
+    setGoogleSubmitting(true);
     try {
       await onGoogleSignIn();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google Sign-In failed.');
+      setAuthError(
+        err instanceof Error ? err.message : 'Google Sign-In failed.',
+        getAuthErrorCode(err) || null
+      );
     } finally {
-      setSubmitting(false);
+      setGoogleSubmitting(false);
     }
   };
+
+  const isBusy = submitting || googleSubmitting;
+  const isDuplicateEmailError = mode === 'register' && errorCode === 'auth/email-already-in-use';
+  const isDuplicateUsernameError =
+    mode === 'register' && errorCode === 'auth/username-already-in-use';
 
   return (
     <div
@@ -241,7 +276,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode('login');
-                  setError(null);
+                  setAuthError(null);
                   setResetSentEmail(null);
                 }}
                 className={`inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors ${
@@ -257,7 +292,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode('register');
-                  setError(null);
+                  setAuthError(null);
                   setResetSentEmail(null);
                 }}
                 className={`inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors ${
@@ -273,14 +308,74 @@ export function AuthModal({
           </div>
         )}
 
-        <div className="px-5 sm:px-6 py-5 pb-safe space-y-4 overflow-y-auto">
+        <div ref={bodyRef} className="px-5 sm:px-6 py-5 pb-safe space-y-4 overflow-y-auto">
           {error && (
             <div
               role="alert"
               className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs leading-relaxed"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>{error}</span>
+              <div className="space-y-2 flex-1 min-w-0">
+                <p className="font-medium">{error}</p>
+                {isDuplicateEmailError && (
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginIdentifier(regEmail.trim());
+                        setAuthError(null);
+                        setResetSentEmail(null);
+                        setMode('login');
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-rose-700 hover:bg-rose-800 dark:bg-rose-500 dark:hover:bg-rose-400 text-white dark:text-slate-950 transition-colors"
+                    >
+                      <LogIn className="w-3 h-3" aria-hidden="true" />
+                      Sign in instead
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetIdentifier(regEmail.trim());
+                        setAuthError(null);
+                        setResetSentEmail(null);
+                        setMode('reset');
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors"
+                    >
+                      <KeyRound className="w-3 h-3" aria-hidden="true" />
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode !== 'reset' && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void handleGoogle()}
+                className="w-full inline-flex items-center justify-center gap-2.5 py-2.5 px-4 text-sm font-medium text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/80 shadow-2xs transition-colors disabled:opacity-50"
+              >
+                {googleSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-500 dark:text-slate-400" aria-hidden="true" />
+                ) : (
+                  <GoogleIcon className="w-4 h-4 shrink-0" />
+                )}
+                <span>
+                  {googleSubmitting ? 'Connecting to Google...' : 'Continue with Google'}
+                </span>
+              </button>
+
+              <div className="relative flex items-center">
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-800" />
+                <span className="shrink mx-3 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  or continue with {mode === 'login' ? 'username / email' : 'email'}
+                </span>
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-800" />
+              </div>
             </div>
           )}
 
@@ -345,7 +440,7 @@ export function AuthModal({
                 type="button"
                 onClick={() => {
                   setMode('login');
-                  setError(null);
+                  setAuthError(null);
                   setResetSentEmail(null);
                 }}
                 className="w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
@@ -394,7 +489,7 @@ export function AuthModal({
                     type="button"
                     onClick={() => {
                       setResetIdentifier(loginIdentifier);
-                      setError(null);
+                      setAuthError(null);
                       setResetSentEmail(null);
                       setMode('reset');
                     }}
@@ -435,7 +530,7 @@ export function AuthModal({
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={isBusy}
                 className="w-full py-2.5 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
               >
                 {submitting ? 'Signing in...' : 'Login'}
@@ -485,18 +580,32 @@ export function AuthModal({
                   type="text"
                   autoComplete="username"
                   maxLength={40}
+                  aria-invalid={isDuplicateUsernameError}
                   value={regUsername}
-                  onChange={(e) => setRegUsername(e.target.value)}
+                  onChange={(e) => {
+                    setRegUsername(e.target.value);
+                    if (isDuplicateUsernameError) setAuthError(null);
+                  }}
                   placeholder={suggestedUsername || 'e.g., aarav_sharma'}
-                  className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-lg font-mono focus:border-slate-900 dark:focus:border-slate-400"
+                  className={`w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border rounded-lg font-mono focus:border-slate-900 dark:focus:border-slate-400 ${
+                    isDuplicateUsernameError
+                      ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-950/30'
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
                 />
-                {suggestedUsername && (
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    Login username will be:{' '}
-                    <span className="font-mono font-medium text-slate-700 dark:text-slate-200">
-                      {suggestedUsername}
-                    </span>
+                {isDuplicateUsernameError ? (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                    This username is already taken. Please choose another username.
                   </p>
+                ) : (
+                  suggestedUsername && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Login username will be:{' '}
+                      <span className="font-mono font-medium text-slate-700 dark:text-slate-200">
+                        {suggestedUsername}
+                      </span>
+                    </p>
+                  )
                 )}
               </div>
 
@@ -509,20 +618,40 @@ export function AuthModal({
                 </label>
                 <div className="relative">
                   <Mail
-                    className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                    className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
+                      isDuplicateEmailError
+                        ? 'text-rose-500 dark:text-rose-400'
+                        : 'text-slate-400 dark:text-slate-500'
+                    }`}
                     aria-hidden="true"
                   />
                   <input
+                    ref={regEmailInputRef}
                     id="reg-email"
                     type="email"
                     autoComplete="email"
                     required
+                    aria-invalid={isDuplicateEmailError}
                     value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
+                    onChange={(e) => {
+                      setRegEmail(e.target.value);
+                      if (isDuplicateEmailError || errorCode === 'auth/invalid-email') {
+                        setAuthError(null);
+                      }
+                    }}
                     placeholder="you@example.com"
-                    className="w-full pl-9 pr-3.5 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-lg focus:border-slate-900 dark:focus:border-slate-400"
+                    className={`w-full pl-9 pr-3.5 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border rounded-lg focus:border-slate-900 dark:focus:border-slate-400 ${
+                      isDuplicateEmailError
+                        ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-950/30'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
                   />
                 </div>
+                {isDuplicateEmailError && (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                    This email ID is already registered. Please sign in or use a different email.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -612,31 +741,12 @@ export function AuthModal({
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={isBusy}
                 className="w-full py-2.5 text-sm font-medium text-white dark:text-slate-900 bg-slate-900 dark:bg-slate-100 rounded-lg hover:bg-slate-800 dark:hover:bg-white transition-colors disabled:opacity-50"
               >
                 {submitting ? 'Creating account...' : 'Create Account'}
               </button>
             </form>
-          )}
-
-          {mode !== 'reset' && (
-            <>
-              <div className="relative flex items-center py-1">
-                <div className="flex-grow border-t border-slate-200 dark:border-slate-800" />
-                <span className="shrink mx-3 text-[11px] text-slate-400 dark:text-slate-500">or</span>
-                <div className="flex-grow border-t border-slate-200 dark:border-slate-800" />
-              </div>
-
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleGoogle()}
-                className="w-full py-2.5 px-4 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-              >
-                Continue with Google
-              </button>
-            </>
           )}
         </div>
       </div>
